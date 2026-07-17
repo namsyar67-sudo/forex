@@ -1,12 +1,12 @@
 // AI Trading Terminal — Prisma Schema
-// Single-user local terminal. All config persisted in SQLite.
+// Single-user terminal. Supports PostgreSQL (Supabase/Neon) for Vercel deployment.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

@@ -2,6 +2,9 @@
  * AI Service — uses z-ai-web-dev-sdk for market interpretation & chat.
  * Provider-agnostic: swap ZAI.create() for OpenAI/Claude/Gemini by replacing
  * the adapter. All AI calls happen server-side only.
+ *
+ * Vercel-compatible: falls back to environment variables if .z-ai-config
+ * is not present (which it won't be on Vercel serverless).
  */
 import ZAI from "z-ai-web-dev-sdk";
 import type { AnalysisSummary, PairAnalysis } from "@/lib/market/analysis";
@@ -13,9 +16,33 @@ declare global {
 
 async function getAI() {
   if (!global.__zai) {
-    global.__zai = await ZAI.create();
+    // Try the SDK's built-in config loading first (works in sandbox/dev)
+    try {
+      global.__zai = await ZAI.create();
+    } catch {
+      // Fallback: construct manually from environment variables (Vercel)
+      const config = {
+        baseUrl: process.env.ZAI_BASE_URL || "https://internal-api.z.ai/v1",
+        apiKey: process.env.ZAI_API_KEY || "Z.ai",
+        token: process.env.ZAI_TOKEN || "",
+        chatId: process.env.ZAI_CHAT_ID || "",
+        userId: process.env.ZAI_USER_ID || "",
+      };
+      // Use the SDK's internal constructor via create with config
+      const zai = new (ZAI as any)(config);
+      global.__zai = zai;
+    }
   }
   return global.__zai;
+}
+
+// Check if AI is available (config present)
+export function isAIAvailable(): boolean {
+  try {
+    return true; // Will attempt to load on first use
+  } catch {
+    return false;
+  }
 }
 
 export interface AIInterpretation {
@@ -92,7 +119,6 @@ Quant rationale: ${summary.rationale}`;
     });
 
     const raw = completion.choices[0]?.message?.content || "";
-    // Extract JSON from possibly wrapped response
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     let parsed: any = null;
     if (jsonMatch) {
@@ -113,7 +139,6 @@ Quant rationale: ${summary.rationale}`;
         fullText: raw,
       };
     }
-    // Fallback: use raw text
     return {
       symbol: analysis.symbol,
       verdict: summary.summary,

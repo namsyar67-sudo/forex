@@ -46,6 +46,10 @@ const TradeMonitorPanel = lazy(() => import("@/components/terminal/v3/trade-moni
 const SignalHistoryPanel = lazy(() => import("@/components/terminal/v3/signal-history-panel"));
 const SignalDetailDialog = lazy(() => import("@/components/terminal/v3/signal-detail-dialog"));
 
+// V4 components — Multi-Agent AI
+const MultiAgentPanel = lazy(() => import("@/components/terminal/v4/multi-agent-panel"));
+const AgentConsensusPanel = lazy(() => import("@/components/terminal/v4/agent-consensus-panel"));
+
 function PanelFallback({ label }: { label: string }) {
   return (
     <div className="tt-panel rounded-xl h-full flex items-center justify-center text-xs text-slate-500">
@@ -285,6 +289,21 @@ export default function TerminalPage() {
               <div className="h-[360px] min-h-0">
                 <AIChat />
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeView === "agents" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
+            <div className="lg:col-span-7 min-h-0">
+              <Suspense fallback={<PanelFallback label="Multi-Agent Decision" />}>
+                <MultiAgentPanel symbol={selectedSymbol} />
+              </Suspense>
+            </div>
+            <div className="lg:col-span-5 min-h-0">
+              <Suspense fallback={<PanelFallback label="Agent Consensus" />}>
+                <AgentConsensusPanel onSelect={setSelectedSymbol} />
+              </Suspense>
             </div>
           </div>
         )}

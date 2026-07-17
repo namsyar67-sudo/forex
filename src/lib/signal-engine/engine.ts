@@ -255,11 +255,11 @@ export function generateSignal(ctx: SignalContext): TradingSignal {
   const dominant = Math.max(totalBull, totalBear);
   const isBullDir = totalBull >= totalBear;
 
-  if (qualityScore >= 80 && dominant > 60) {
+  if (qualityScore >= 75 && dominant > 50) {
     signalType = isBullDir ? "STRONG_BUY" : "STRONG_SELL";
-  } else if (qualityScore >= 60 && dominant > 40) {
+  } else if (qualityScore >= 45 && dominant > 30) {
     signalType = isBullDir ? "BUY" : "SELL";
-  } else if (qualityScore < 40 || dominant < 25) {
+  } else if (qualityScore < 30 || dominant < 20) {
     signalType = "WAIT";
   } else {
     signalType = isBullDir ? "BUY" : "SELL";

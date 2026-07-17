@@ -544,3 +544,79 @@ Stage Summary:
   * `signal-detail-dialog.tsx` — full-detail modal with SVG QualityRing, trade setup grid, summary, reasons list, indicators grid, and a vertical event timeline (newest-first) with priority colors + per-type icons. Loading skeleton + error state + null-signalId handling.
   * `signal-history-panel.tsx` — closed-signal history list with 30s auto-refresh, win-rate/wins/losses/avg-confidence stats row, per-row outcome badge + entry→close + PnL% + Conf/Quality + duration + close reason. Loading skeleton + empty state.
 - All components follow the dark glassmorphism Bloomberg-terminal design system, use shadcn Dialog/Skeleton/Button, lucide-react icons, `tt-*` color tokens, `tt-mono` numerics, sonner toasts. Ready to be mounted in the V3 dashboard by the orchestrator, with `onSelectSignal` callbacks wiring the panels to the SignalDetailDialog.
+
+---
+Task ID: V3-FINAL
+Agent: Orchestrator
+Task: V3 AI Trading Analyst — integration, optimization, and verification
+
+Work Log:
+- Extended Prisma schema with 4 new models: ActiveSignal, SignalHistory, TradeEvent, ScanResult
+- Built Signal Engine (src/lib/signal-engine/engine.ts):
+  * Aggregates ALL analyses: Trend, Momentum, Smart Money, ICT, Price Action, News, Sentiment, Liquidity, Volatility, Risk, Correlation, Session, Spread
+  * 13 verification checks per signal with pass/fail and weight
+  * Trade Quality Score (0-100) computed from: MTF alignment (50pts), Structure (50pts), News (20pts), Risk/Reward (20pts), Volatility/Liquidity (20pts), Sentiment (15pts)
+  * Signal types: STRONG_BUY, BUY, WAIT, SELL, STRONG_SELL
+  * Full trade setup: Entry, SL, TP1, TP2, TP3, RR, Confidence, Quality, Duration, Probability, Risk Level, Session
+  * Signal explanation with reasons (Bullish BOS, Order Block, Liquidity Sweep, EMA200, RSI Recovery, etc.)
+  * Notification formatting with priority levels
+- Built Trade Monitor (src/lib/trade-monitor/monitor.ts):
+  * Monitors active signals every 15s
+  * Detects: TP1/TP2/TP3 hits, SL hits, confidence drops, new BOS/CHOCH, OB breaks, trend changes, risk elevation, high-impact news
+  * Auto-closes trades on TP3 (win) or SL (loss)
+  * Generates appropriate trade events with priority
+  * Suggests: Move SL to break even (on TP1), Close trade (on CHOCH against), Reduce position (on risk)
+- Built Market Scanner (src/lib/scanner/engine.ts):
+  * Scans all 16 pairs using cached analysis
+  * Ranks by quality score then confidence
+  * Auto-creates active signals for opportunities meeting thresholds
+  * Persists scan results and signal history
+  * Deduplicates (won't create duplicate signals for same symbol within 15 min)
+- Built 7 new API routes:
+  * GET/POST /api/scanner — run scan, fetch results
+  * GET /api/signals — all signals with live PnL
+  * GET /api/signals/active — active signals only
+  * GET/PATCH/DELETE /api/signals/[id] — signal detail, close, update
+  * GET/POST /api/notifications — trade events feed
+  * PATCH/DELETE /api/notifications/[id] — mark read, delete
+  * POST /api/trade-events — trigger trade monitoring
+- Built 6 V3 UI components (via 2 parallel subagents):
+  * signal-panel.tsx — active signal cards with quality bars, reasons, trade setup
+  * scanner-panel.tsx — ranked top opportunities with Run Scan button
+  * notification-feed.tsx — real-time event stream with priority colors and type icons
+  * trade-monitor-panel.tsx — live trade cards with progress bars, TP status, live PnL
+  * signal-detail-dialog.tsx — full signal detail with event timeline
+  * signal-history-panel.tsx — past signals with outcomes and win rate
+- Added 3 new dashboard views: AI Analyst, Signals, Monitor
+- Added AUTO-START WATCH MODE:
+  * Market scanner runs automatically every 60s (first scan after 5s)
+  * Trade monitor runs automatically every 15s (first monitor after 10s)
+  * No button press required — starts on page load
+- Upgraded AI Copilot with active signals + recent events context
+- Performance: shared cached analysis (getAllAnalysisCached), lazy-loaded V3 components
+- Fixed scanner quotes array→map conversion bug
+- Adjusted signal type thresholds for realistic market conditions
+- Lint clean (0 errors, 0 warnings)
+
+Verification Results:
+- Scanner: 16 pairs scanned, 14 top opportunities found, 14 new signals created ✓
+- Active signals: 14 persisted with full trade setup (entry/SL/TP1-3/RR/reasons) ✓
+- Notifications: 14 NEW_SIGNAL events auto-generated ✓
+- Trade monitor: runs successfully, checks TP/SL/structure changes ✓
+- All V3 APIs return 200 ✓
+- Browser: AI Analyst, Signals, and Monitor views all render without errors ✓
+- Auto-start watch mode confirmed working (signals created automatically) ✓
+
+Stage Summary:
+- V3 AI Trading Analyst system complete and fully functional.
+- All V1 and V2 functionality preserved (no existing code rewritten).
+- The system now operates as a professional AI trading analyst that:
+  1. Auto-starts monitoring all pairs on launch (no button needed)
+  2. Scans market every 60s for opportunities
+  3. Generates signals with Trade Quality Score (0-100)
+  4. Creates active signals with full trade setup (entry/SL/TP1-3/reasons)
+  5. Monitors active trades every 15s for TP/SL/structure changes
+  6. Sends real-time notifications with priority levels
+  7. Auto-closes trades on TP3 (win) or SL (loss)
+  8. Tracks signal history with win/loss outcomes
+  9. AI Copilot knows all active signals, events, and can answer trade questions

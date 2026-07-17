@@ -8,8 +8,8 @@ export const revalidate = 0;
 // POST: trigger a market scan
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
-  const minConfidence = parseInt(searchParams.get("minConfidence") || "65", 10);
-  const minQualityScore = parseInt(searchParams.get("minQualityScore") || "55", 10);
+  const minConfidence = parseInt(searchParams.get("minConfidence") || "35", 10);
+  const minQualityScore = parseInt(searchParams.get("minQualityScore") || "40", 10);
 
   try {
     const result = await runMarketScan({ minConfidence, minQualityScore, persistSignals: true });

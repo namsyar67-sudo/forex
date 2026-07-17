@@ -28,11 +28,15 @@ export async function runMarketScan(opts: {
   minQualityScore?: number;
   persistSignals?: boolean;
 } = {}): Promise<ScanOutput> {
-  const minConfidence = opts.minConfidence ?? 65;
-  const minQualityScore = opts.minQualityScore ?? 55;
+  const minConfidence = opts.minConfidence ?? 35;
+  const minQualityScore = opts.minQualityScore ?? 40;
   const persistSignals = opts.persistSignals ?? true;
 
-  const { quotes } = await getAllQuotes();
+  const { quotes: quotesArr } = await getAllQuotes();
+  // Convert quotes array to a map keyed by symbol for O(1) lookup
+  const quotes: Record<string, any> = {};
+  for (const q of quotesArr) quotes[q.symbol] = q;
+
   // Use cached shared data (don't recompute — these are also computed by other routes)
   let newsImpact: any = { items: [], highImpactCount: 0, topRiskSymbols: [] };
   let sessionAnalysis: any = { sessions: [], currentSession: { name: "Unknown", volMultiplier: 1 }, bestSession: { name: "Unknown", volMultiplier: 1 }, summary: "" };

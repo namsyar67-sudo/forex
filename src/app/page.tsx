@@ -55,6 +55,11 @@ const NewsIntelligencePanel = lazy(() => import("@/components/terminal/v5/news-i
 const NewsSourcesPanel = lazy(() => import("@/components/terminal/v5/news-sources-panel"));
 const ScheduledNewsPanel = lazy(() => import("@/components/terminal/v5/scheduled-news-panel"));
 
+// V6 components — Decision Audit & Latency
+const AuditPanel = lazy(() => import("@/components/terminal/v6/audit-panel"));
+const AuditDetailDialog = lazy(() => import("@/components/terminal/v6/audit-detail-dialog"));
+const LatencyPanel = lazy(() => import("@/components/terminal/v6/latency-panel"));
+
 function PanelFallback({ label }: { label: string }) {
   return (
     <div className="tt-panel rounded-xl h-full flex items-center justify-center text-xs text-slate-500">
@@ -82,6 +87,8 @@ export default function TerminalPage() {
   const [probData, setProbData] = useState<{ buy: number; sell: number; wait: number } | null>(null);
   const [signalDetailId, setSignalDetailId] = useState<string | null>(null);
   const [signalDetailOpen, setSignalDetailOpen] = useState(false);
+  const [auditDetailId, setAuditDetailId] = useState<string | null>(null);
+  const [auditDetailOpen, setAuditDetailOpen] = useState(false);
 
   // Load instruments once (client-side fetch via API)
   useEffect(() => {
@@ -294,6 +301,21 @@ export default function TerminalPage() {
               <div className="h-[360px] min-h-0">
                 <AIChat />
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeView === "audit" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
+            <div className="lg:col-span-8 min-h-0">
+              <Suspense fallback={<PanelFallback label="Decision Audit" />}>
+                <AuditPanel onSelectAudit={(id) => { setAuditDetailId(id); setAuditDetailOpen(true); }} />
+              </Suspense>
+            </div>
+            <div className="lg:col-span-4 min-h-0">
+              <Suspense fallback={<PanelFallback label="Latency Monitor" />}>
+                <LatencyPanel />
+              </Suspense>
             </div>
           </div>
         )}
@@ -536,6 +558,9 @@ export default function TerminalPage() {
       </Suspense>
       <Suspense fallback={null}>
         <SignalDetailDialog open={signalDetailOpen} onOpenChange={setSignalDetailOpen} signalId={signalDetailId} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <AuditDetailDialog open={auditDetailOpen} onOpenChange={setAuditDetailOpen} auditId={auditDetailId} />
       </Suspense>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       <OpenPositionDialog

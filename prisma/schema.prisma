@@ -395,3 +395,70 @@ model ScanResult {
   @@index([rank])
 }
 
+// ============================================================
+// V6 — DECISION AUDIT (full reviewable trail per recommendation)
+// ============================================================
+model DecisionAudit {
+  id              String   @id @default(cuid())
+  signalId        String?              // links to ActiveSignal if one was created
+  symbol          String
+  decision        String              // BUY | SELL | HOLD | WAIT
+  confidence      Float
+  qualityScore    Float
+  direction       String
+
+  // Why was it issued?
+  reasoning       String              // full AI reasoning text
+  agentReports    String              // JSON array of all agent reports
+  factorsSummary  String              // JSON of key factors
+
+  // What data was used?
+  dataSnapshot    String              // JSON: price, RSI, ADX, MACD, trend, SMC bias, etc.
+  newsSnapshot    String?             // JSON: verified news items at decision time
+  calendarSnapshot String?            // JSON: upcoming events at decision time
+  sentimentSnapshot String?           // JSON: sentiment at decision time
+
+  // What news affected it?
+  influencingNews String?             // JSON: news items that influenced the decision
+  breakingNewsAtDecision String?     // JSON: breaking news present at decision time
+
+  // What changed afterward?
+  outcomeTracked  Boolean  @default(false)
+  finalOutcome    String?             // win | loss | expired | invalidated | still_active
+  outcomePrice    Float?
+  outcomePnl      Float?
+  outcomeReason   String?
+  postDecisionEvents String?          // JSON: events that occurred after the decision
+  confidenceChange Float?             // confidence delta from decision to outcome
+
+  // Latency tracking (milliseconds)
+  newsArrivalLatency    Int?          // time from news publish to system detection
+  processingLatency     Int?          // time to process and analyze
+  reanalysisLatency     Int?          // time to re-analyze after new data
+  notificationLatency   Int?          // time from decision to notification sent
+  totalLatency          Int?          // end-to-end: news publish → notification
+
+  // Metadata
+  decisionTime    DateTime @default(now())
+  resolvedAt      DateTime?
+
+  @@index([symbol, decisionTime])
+  @@index([decisionTime])
+  @@index([finalOutcome])
+}
+
+// ============================================================
+// V6 — LATENCY METRICS (aggregated performance tracking)
+// ============================================================
+model LatencyMetric {
+  id              String   @id @default(cuid())
+  metricType      String              // news_arrival | processing | reanalysis | notification | total
+  symbol          String?
+  valueMs         Int                 // latency in milliseconds
+  context         String?             // JSON: additional context
+  createdAt       DateTime @default(now())
+
+  @@index([metricType, createdAt])
+  @@index([createdAt])
+}
+

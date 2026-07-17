@@ -13,6 +13,8 @@ import { getCandles, getAllQuotes } from "@/lib/market/client";
 import { analyzeSmartMoney } from "@/lib/smart-money/engine";
 import { analyzeMultiTimeframe } from "@/lib/multi-timeframe/engine";
 import { computeNewsImpact } from "@/lib/news-impact/engine";
+import { recordDecisionAudit } from "@/lib/audit/service";
+import { startTimer, endTimer } from "@/lib/audit/latency";
 import { analyzeSessions } from "@/lib/session-analysis/engine";
 import { computeHeatmap } from "@/lib/heatmap/engine";
 import { correlationMatrix } from "@/lib/market/analysis";
@@ -82,6 +84,9 @@ export async function buildAgentContext(symbol: string): Promise<AgentContext> {
 }
 
 export async function runChiefDecision(symbol: string): Promise<ChiefDecision> {
+  const timerId = `chief:${symbol}:${Date.now()}`;
+  startTimer(timerId, "processing", symbol);
+
   const ctx = await buildAgentContext(symbol);
 
   // Run all agents in parallel
@@ -157,7 +162,7 @@ export async function runChiefDecision(symbol: string): Promise<ChiefDecision> {
   // Build reasoning
   const reasoning = buildReasoning(reports, finalRecommendation, avgScore, alignment, ctx);
 
-  return {
+  const decision: ChiefDecision = {
     symbol: ctx.symbol,
     finalRecommendation,
     unifiedConfidence,
@@ -175,6 +180,54 @@ export async function runChiefDecision(symbol: string): Promise<ChiefDecision> {
     consensus: { bullCount, bearCount, neutralCount, alignment },
     timestamp: Date.now(),
   };
+
+  // Record audit trail (non-blocking, fire-and-forget)
+  const processingLatency = endTimer(timerId);
+  recordDecisionAudit({
+    symbol: ctx.symbol,
+    decision: finalRecommendation,
+    confidence: unifiedConfidence,
+    qualityScore,
+    direction,
+    reasoning,
+    agentReports: reports.map(r => ({
+      agent: r.agent,
+      recommendation: r.recommendation,
+      confidence: r.confidence,
+      score: r.score,
+      summary: r.summary,
+      factors: r.factors,
+    })),
+    factorsSummary: {
+      consensus: { bullCount, bearCount, neutralCount, alignment },
+      avgScore,
+      riskScore,
+      riskReward,
+    },
+    dataSnapshot: {
+      price: ctx.price,
+      rsi: ctx.analysis?.rsi,
+      adx: ctx.analysis?.adx,
+      atr: ctx.analysis?.atr,
+      macdHist: ctx.analysis?.macdHist,
+      trend: ctx.analysis?.trend,
+      signal: ctx.analysis?.signal,
+      smcBias: ctx.smc?.summary?.bias,
+      smcStructure: ctx.smc?.summary?.marketStructure,
+      mtfAlignment: ctx.mtf?.overall?.alignment,
+      premiumDiscount: ctx.smc?.premiumDiscount?.position,
+    },
+    newsSnapshot: ctx.newsImpact?.items?.slice(0, 5),
+    sentimentSnapshot: ctx.heatmap ? {
+      topCurrency: ctx.heatmap.topCurrency,
+      bottomCurrency: ctx.heatmap.bottomCurrency,
+    } : null,
+    latency: {
+      processingLatency: processingLatency || undefined,
+    },
+  }).catch(() => { /* non-fatal */ });
+
+  return decision;
 }
 
 function buildReasoning(

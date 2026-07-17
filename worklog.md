@@ -847,3 +847,136 @@ Stage Summary:
 - Trade impact monitoring (compares news against open positions).
 - AI summary in plain language.
 - All V1/V2/V3/V4 functionality preserved.
+
+---
+Task ID: V6-1
+Agent: Sub-agent (general-purpose)
+Task: Build V6 Decision Audit components — Audit Panel, Audit Detail Dialog, Latency Panel
+
+Work Log:
+- Read worklog.md, /lib/audit/service.ts (recordDecisionAudit, resolveDecisionAudit, getAuditDetail, listAudits, getAuditStats, autoResolveAudits), /lib/audit/latency.ts (LatencyStats shape, getLatencyStatsFromMemory/DB, startTimer/endTimer), /api/audit/route.ts (list + stats + POST resolve), /api/audit/[id]/route.ts (GET detail, PATCH manual resolve), /api/audit/latency/route.ts (memory or db source), /lib/format.ts (relativeTime, formatTime), /lib/agents/types.ts (AgentReport, AgentFactor), and existing patterns from v3/signal-detail-dialog.tsx and v5/news-intelligence-panel.tsx to mirror conventions (tt-panel wrapper, tt-glass-strong dialog, tt-mono numbers, SectionTitle pattern, Skeleton usage, latency color thresholds).
+- Created `/home/z/my-project/src/components/terminal/v6/audit-panel.tsx`:
+  * `"use client"` panel fetching both `/api/audit?limit=50` and `/api/audit?stats=true` in parallel every 30s (setInterval, silent refresh after first load).
+  * Header "Decision Audit" with count badge, Loader2 spinner while refreshing, and "Resolve Old" button (POST `/api/audit/resolve`, toast feedback, re-fetches after).
+  * Stats row: 5 cells (Total, Resolved, Win Rate %, Avg Confidence %, Avg Latency) — each with lucide icon, tt-mono number.
+  * By Decision breakdown: BUY/SELL/WAIT/HOLD badges with counts (BUY=emerald, SELL=red, HOLD=slate, WAIT=amber).
+  * By Outcome breakdown: WIN/LOSS/EXPIRED/INVALIDATED/ACTIVE + PENDING badges with counts.
+  * Filter buttons (All / Unresolved / Wins / Losses) with active state styling + "N shown" counter.
+  * Audit list (scrollable, tt-scroll): each row shows symbol (bold mono) + decision badge + direction badge + outcome badge if resolved + relative time; second row of metrics (Conf, Quality, PnL, Δ Conf with arrow icon, Latency colored by speed).
+  * Clicking a row calls `onSelectAudit?.(id)` prop.
+  * Latency coloring: <1000ms emerald (tt-text-up), <5000ms amber (tt-text-accent), >5000ms red (tt-text-down).
+  * Confidence change rendered with TrendingUp/TrendingDown icon and +/- sign.
+  * Loading skeleton (5 stat cells + breakdown placeholders + 6 row placeholders), error state with Retry, empty state with filter-aware messaging.
+  * Props: `onSelectAudit?: (id: string) => void`.
+- Created `/home/z/my-project/src/components/terminal/v6/audit-detail-dialog.tsx`:
+  * `"use client"` dialog using `@/components/ui/dialog` (Dialog, DialogContent with `tt-glass-strong`, DialogHeader, DialogTitle, DialogDescription, DialogFooter).
+  * Props: `open: boolean; onOpenChange: (o: boolean) => void; auditId: string | null`.
+  * Fetches `/api/audit/${auditId}` on open; resets state on close to avoid stale flash.
+  * Header: symbol (mono) + decision badge + direction badge (with TrendingUp/Down icon) + outcome badge if resolved + relative time. Subtitle: Audit ID + optional Signal ID.
+  * Key stats row: Confidence, Quality (colored), Total Latency (colored), Decision Time.
+  * **Outcome Section**: if resolved → outcome badge, PnL (signed, colored), Conf Δ (colored), Resolved time, reason text. If unresolved → "Pending — tracking outcome" with spinner.
+  * **Latency Section**: 5-cell grid (News Arrival, Processing, Reanalysis, Notification, Total) — each cell colored by speed (green/amber/red bg + text).
+  * **Why was it issued?**: full reasoning text in `<pre>` monospace pre-wrap with max-height + scroll; agent reports grid (1-2 cols) where each card shows agent name (capitalize), recommendation badge, confidence %, score (signed colored), weight, summary, top 4 factors as impact-colored chips.
+  * **What data was used?**: data snapshot grid (3-4 cols) — surfaces known keys (price, rsi, adx, atr, macd, trend, signal, smcBias, smcStructure, mtfAlignment, premiumDiscount) first then any extras; news snapshot list (if any) with title/source/time/impact/verification; sentiment snapshot block (direction + confidence + reasoning).
+  * **What news affected it?**: breaking news at decision (red border box with Flame icon) + influencing news list.
+  * **What changed afterward?**: post-decision events timeline (vertical line with sky dots, title + message + time per event), confidence change, final outcome summary card.
+  * **Manual Resolve Form** (only if unresolved): Select outcome (win/loss/expired), Input PnL (number), Input reason, submit button → PATCH `/api/audit/${auditId}`, toast feedback, calls onResolved to refetch.
+  * Loading skeleton, error state with Close button, handles null auditId gracefully.
+  * Robust safeString/safeArray helpers for any shape mismatch from parsed JSON snapshots.
+- Created `/home/z/my-project/src/components/terminal/v6/latency-panel.tsx`:
+  * `"use client"` panel fetching `/api/audit/latency` every 15s (setInterval, silent refresh).
+  * Header "Latency Monitor" with subtitle "Real-time performance tracking", source badge (memory/db) with Radio icon, refresh button (Loader2 spinner while refreshing).
+  * 5 Latency Cards (News Arrival, Processing, Reanalysis, Notification, Total — Total highlighted as "end-to-end"):
+    - Each card has metric name + lucide icon + speed indicator icon (top-right).
+    - Big average (ms, tt-mono, colored by speed) + P95 (colored) on the right.
+    - Mini dual-bar: P95 (background, white/10) + avg (foreground, colored dot) relative to max.
+    - Footer: Min, Max (mono), Count (mono).
+    - Description line (italic, e.g. "Time from news publication to ingestion").
+    - Card border + bg colored by avg speed (emerald/amber/red).
+  * **Performance Assessment** card:
+    - Overall verdict badge: Excellent (<1s) / Good (<3s) / Needs Improvement (<6s) / Critical (≥6s) / No Data — each with icon + colored border.
+    - Measurement count.
+    - Explanation text (verdict-specific, e.g. "End-to-end latency is well within target...").
+    - Concrete impact line: "If news arrives Xms late, opportunities may be missed..." (X = total avg, colored).
+    - Recommendations list (only when latency is high) — stage-specific suggestions (news arrival, processing, reanalysis, notification, total).
+    - "Where the time goes" stacked bar: 4 stages with sky/violet/amber/emerald segments + legend showing ms per stage.
+  * Loading skeleton (5 card placeholders + assessment placeholder), error state with Retry.
+- Verified all three files type-check cleanly (`npx tsc --noEmit` shows zero errors in v6 files) and ESLint passes (`npx eslint src/components/terminal/v6/` shows zero errors).
+- Did NOT modify any existing files. Only created 3 new files in `/home/z/my-project/src/components/terminal/v6/`.
+
+Stage Summary:
+- V6 Decision Audit UI complete: 3 production-ready components.
+- Audit Panel: list of past decisions with stats, breakdowns, filters, and one-click resolve.
+- Audit Detail Dialog: full audit trail (why issued, data used, news impact, post-decision changes) + manual resolve form.
+- Latency Panel: 5 metric cards + performance assessment with verdict, recommendations, and stage breakdown.
+- All components follow Bloomberg-terminal dark glassmorphism design system: tt-panel wrapper, tt-glass-strong dialog, tt-mono numerics, tt-text-up/down/dim/accent tokens, tt-scroll, consistent header/body pattern, lucide-react icons, sonner toast feedback.
+- Auto-refresh: audit panel 30s, latency panel 15s (silent after first load to avoid spinner flicker).
+- Ready for orchestrator to wire into the terminal dashboard view router.
+
+---
+Task ID: V6-FINAL
+Agent: Orchestrator
+Task: AI Decision Audit & Latency Tracking — integration and verification
+
+Work Log:
+- Extended Prisma schema with 2 new models:
+  * DecisionAudit — full reviewable trail per recommendation (reasoning, agent reports, data snapshot, news snapshot, influencing news, post-decision events, outcome, latency fields)
+  * LatencyMetric — aggregated latency metrics by type (news_arrival, processing, reanalysis, notification, total)
+- Built latency tracker (src/lib/audit/latency.ts):
+  * startTimer/endTimer for measuring processing time
+  * In-memory recent metrics (last 500) for quick stats
+  * DB persistence for long-term tracking
+  * getLatencyStatsFromMemory() and getLatencyStatsFromDB()
+  * Computes avg, min, max, p95 per metric type
+- Built audit service (src/lib/audit/service.ts):
+  * recordDecisionAudit() — records full audit trail when a decision is made
+  * resolveDecisionAudit() — updates outcome when decision is resolved
+  * getAuditDetail() — fetches full audit with all parsed JSON fields
+  * listAudits() — lists audits with filters (symbol, decision, outcome, unresolved)
+  * getAuditStats() — aggregated stats (total, win rate, avg confidence, avg latency, by decision, by outcome, recent trend)
+  * autoResolveAudits() — automatically resolves old audits by checking linked signal outcomes
+- Integrated audit logging into Chief AI Agent:
+  * Every runChiefDecision() now records a DecisionAudit
+  * Captures: reasoning, all agent reports, data snapshot (price, RSI, ADX, MACD, trend, SMC, MTF), news snapshot, sentiment snapshot
+  * Tracks processing latency via startTimer/endTimer
+  * Non-blocking (fire-and-forget) to not slow down the decision
+- Built 4 API routes:
+  * GET/POST /api/audit — list audits, get stats, auto-resolve
+  * GET/PATCH /api/audit/[id] — audit detail, manual resolve
+  * GET /api/audit/latency — latency stats (memory or DB source)
+  * POST /api/audit/resolve — trigger auto-resolution
+- Built 3 V6 UI components (via subagent):
+  * audit-panel.tsx — audit list with stats, filters, decision/outcome badges, latency indicators
+  * audit-detail-dialog.tsx — full audit trail dialog (Why issued? What data? What news? What changed?)
+  * latency-panel.tsx — 5 latency cards (news arrival, processing, reanalysis, notification, total) with p95, performance assessment
+- Added "Audit" view to dashboard navigation
+- Integrated V6 view into page.tsx with lazy loading (2-column: audit list + latency monitor)
+- Lint clean (0 errors, 0 warnings)
+
+Every decision now answers 4 questions:
+1. Why was it issued? → Full reasoning + all agent reports
+2. What data was used? → Price, indicators, SMC, MTF, news, sentiment snapshots
+3. What news affected it? → Influencing news, breaking news at decision time
+4. What changed afterward? → Outcome, post-decision events, confidence change
+
+Latency tracking measures:
+- News arrival latency (news publish → system detection)
+- Processing latency (analysis computation time)
+- Reanalysis latency (time to re-analyze after new data)
+- Notification latency (decision → notification sent)
+- Total latency (end-to-end)
+
+Verification Results:
+- Audit API: 1 decision recorded with full trail ✓
+- Latency API: memory + DB stats working ✓
+- Stats API: total, resolved, win rate, by decision/outcome ✓
+- Chief Agent integration: audit recorded on every decision ✓
+- Lint: 0 errors ✓
+
+Stage Summary:
+- AI Decision Audit system complete.
+- Every recommendation is now fully reviewable post-hoc.
+- 4 key questions answered per decision: Why? What data? What news? What changed?
+- Latency tracking identifies bottlenecks (if news arrives late, opportunity is gone).
+- Auto-resolution links audits to signal outcomes (win/loss).
+- All V1/V2/V3/V4/V5 functionality preserved.

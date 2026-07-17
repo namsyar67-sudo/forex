@@ -1,0 +1,854 @@
+     1→"use client";
+     2→
+     3→import { useCallback, useEffect, useState } from "react";
+     4→import {
+     5→  AlertTriangle,
+     6→  CheckCircle,
+     7→  Clock,
+     8→  Flame,
+     9→  Globe,
+    10→  Loader2,
+    11→  Newspaper,
+    12→  Radio,
+    13→  Shield,
+    14→  Sparkles,
+    15→  TrendingDown,
+    16→  TrendingUp,
+    17→  Zap,
+    18→} from "lucide-react";
+    19→import { Button } from "@/components/ui/button";
+    20→import { Skeleton } from "@/components/ui/skeleton";
+    21→import { relativeTime, formatTime } from "@/lib/format";
+    22→
+    23→// ---------- Types (mirrors /api/news-intelligence/feed response shape) ----------
+    24→
+    25→interface NewsSentiment {
+    26→  direction: "bullish" | "bearish" | "neutral";
+    27→  confidence: number;
+    28→  currencies: {
+    29→    currency: string;
+    30→    impact: "positive" | "negative" | "neutral";
+    31→    strength: number;
+    32→  }[];
+    33→  reasoning: string;
+    34→}
+    35→
+    36→interface NewsMarketImpact {
+    37→  symbols: {
+    38→    symbol: string;
+    39→    impact: "bullish" | "bearish" | "neutral";
+    40→    strength: number;
+    41→    reasoning: string;
+    42→  }[];
+    43→  overallImpact: "low" | "medium" | "high" | "extreme";
+    44→  affectedCategories: string[];
+    45→  expectedDuration: "minutes" | "hours" | "session" | "days";
+    46→  confidence: number;
+    47→}
+    48→
+    49→interface TradeImpactResult {
+    50→  affectedTrades: {
+    51→    signalId: string;
+    52→    symbol: string;
+    53→    direction: string;
+    54→    currentConfidence: number;
+    55→    impactLevel: "low" | "medium" | "high" | "critical";
+    56→    recommendation: "hold" | "reduce_risk" | "close" | "move_to_breakeven";
+    57→    reasoning: string;
+    58→  }[];
+    59→  hasCriticalImpact: boolean;
+    60→}
+    61→
+    62→interface NewsAISummary {
+    63→  headline: string;
+    64→  plainLanguageSummary: string;
+    65→  keyTakeaways: string[];
+    66→  marketImplications: string;
+    67→  actionRequired: boolean;
+    68→}
+    69→
+    70→interface VerifiedItem {
+    71→  title: string;
+    72→  summary: string;
+    73→  source: string;
+    74→  verificationScore: number;
+    75→  crossSourceCount: number;
+    76→  isVerified: boolean;
+    77→  relatedSources: string[];
+    78→  symbols: string[];
+    79→  publishedAt: string;
+    80→}
+    81→
+    82→interface BreakingItem {
+    83→  title: string;
+    84→  source: string;
+    85→  verificationScore: number;
+    86→  symbols: string[];
+    87→  publishedAt: string;
+    88→}
+    89→
+    90→interface ScheduledAlert {
+    91→  id: string;
+    92→  eventId: string;
+    93→  eventTitle: string;
+    94→  eventTime: string;
+    95→  minutesBefore: number;
+    96→  affectedSymbols: string[];
+    97→  fired: boolean;
+    98→}
+    99→
+   100→interface NewsReport {
+   101→  collectedCount: number;
+   102→  verifiedCount: number;
+   103→  verificationRate: number;
+   104→  breakingCount: number;
+   105→  sourceCount: number;
+   106→  sentiment: NewsSentiment | null;
+   107→  marketImpact: NewsMarketImpact | null;
+   108→  tradeImpact: TradeImpactResult | null;
+   109→  aiSummary: NewsAISummary | null;
+   110→  scheduledAlerts: ScheduledAlert[];
+   111→  verifiedItems: VerifiedItem[];
+   112→  breakingNews: BreakingItem[];
+   113→}
+   114→
+   115→interface DecisionRule {
+   116→  shouldWait: boolean;
+   117→  reason: string;
+   118→}
+   119→
+   120→interface FeedResponse {
+   121→  report: NewsReport;
+   122→  decisionRule: DecisionRule;
+   123→  timestamp: number;
+   124→}
+   125→
+   126→const REFRESH_MS = 30_000;
+   127→
+   128→// ---------- Helpers ----------
+   129→
+   130→const SENTIMENT_BADGE: Record<string, string> = {
+   131→  bullish: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+   132→  bearish: "bg-red-500/15 text-red-300 border-red-500/30",
+   133→  neutral: "bg-slate-500/15 text-slate-300 border-slate-500/30",
+   134→};
+   135→
+   136→const IMPACT_BADGE: Record<string, string> = {
+   137→  low: "bg-slate-500/15 text-slate-300 border-slate-500/30",
+   138→  medium: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+   139→  high: "bg-orange-500/15 text-orange-300 border-orange-500/30",
+   140→  extreme: "bg-red-500/20 text-red-300 border-red-500/40",
+   141→};
+   142→
+   143→const TRADE_IMPACT_BADGE: Record<string, string> = {
+   144→  low: "bg-slate-500/15 text-slate-300 border-slate-500/30",
+   145→  medium: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+   146→  high: "bg-orange-500/15 text-orange-300 border-orange-500/30",
+   147→  critical: "bg-red-500/20 text-red-300 border-red-500/40",
+   148→};
+   149→
+   150→const REC_BADGE: Record<string, string> = {
+   151→  hold: "bg-slate-500/15 text-slate-300 border-slate-500/30",
+   152→  reduce_risk: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+   153→  close: "bg-red-500/20 text-red-300 border-red-500/40",
+   154→  move_to_breakeven: "bg-sky-500/15 text-sky-300 border-sky-500/30",
+   155→};
+   156→
+   157→function scoreColor(score: number): string {
+   158→  if (score >= 80) return "bg-emerald-500";
+   159→  if (score >= 60) return "bg-amber-500";
+   160→  if (score >= 40) return "bg-orange-500";
+   161→  return "bg-red-500";
+   162→}
+   163→
+   164→function directionIcon(direction: string) {
+   165→  if (direction === "bullish") return <TrendingUp className="w-3 h-3" />;
+   166→  if (direction === "bearish") return <TrendingDown className="w-3 h-3" />;
+   167→  return <Clock className="w-3 h-3" />;
+   168→}
+   169→
+   170→// ---------- Component ----------
+   171→
+   172→export function NewsIntelligencePanel() {
+   173→  const [data, setData] = useState<FeedResponse | null>(null);
+   174→  const [loading, setLoading] = useState(true);
+   175→  const [refreshing, setRefreshing] = useState(false);
+   176→  const [running, setRunning] = useState(false);
+   177→  const [error, setError] = useState<string | null>(null);
+   178→
+   179→  const fetchData = useCallback(async (silent = false) => {
+   180→    if (!silent) {
+   181→      setRefreshing(true);
+   182→      setError(null);
+   183→    }
+   184→    try {
+   185→      const res = await fetch("/api/news-intelligence/feed", { cache: "no-store" });
+   186→      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+   187→      const json = (await res.json()) as FeedResponse;
+   188→      if (!json?.report) throw new Error("No report in response");
+   189→      setData(json);
+   190→      setError(null);
+   191→    } catch (e: unknown) {
+   192→      const msg = e instanceof Error ? e.message : "Failed to load news intelligence";
+   193→      if (!silent) setError(msg);
+   194→    } finally {
+   195→      setLoading(false);
+   196→      setRefreshing(false);
+   197→    }
+   198→  }, []);
+   199→
+   200→  const runAnalysis = useCallback(async () => {
+   201→    setRunning(true);
+   202→    setError(null);
+   203→    try {
+   204→      const res = await fetch("/api/news-intelligence/feed", { method: "POST" });
+   205→      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+   206→      const json = (await res.json()) as FeedResponse;
+   207→      if (!json?.report) throw new Error("No report in response");
+   208→      setData(json);
+   209→    } catch (e: unknown) {
+   210→      const msg = e instanceof Error ? e.message : "Failed to run analysis";
+   211→      setError(msg);
+   212→    } finally {
+   213→      setRunning(false);
+   214→    }
+   215→  }, []);
+   216→
+   217→  useEffect(() => {
+   218→    fetchData(false);
+   219→    const id = setInterval(() => fetchData(true), REFRESH_MS);
+   220→    return () => clearInterval(id);
+   221→  }, [fetchData]);
+   222→
+   223→  const report = data?.report;
+   224→  const decisionRule = data?.decisionRule;
+   225→  const busy = refreshing || running;
+   226→
+   227→  return (
+   228→    <div className="tt-panel rounded-xl flex flex-col h-full overflow-hidden">
+   229→      {/* Header */}
+   230→      <div className="flex items-center justify-between p-3 border-b border-white/5 gap-2">
+   231→        <div className="flex items-center gap-2 min-w-0">
+   232→          <Newspaper
+   233→            className={`w-4 h-4 text-amber-300 shrink-0 ${
+   234→              busy ? "animate-pulse" : "tt-pulse-dot"
+   235→            }`}
+   236→          />
+   237→          <span className="text-sm font-semibold">News Intelligence</span>
+   238→          {report && (
+   239→            <>
+   240→              <span className="text-[10px] uppercase tracking-wider text-slate-500 shrink-0">
+   241→                · {report.sourceCount} sources
+   242→              </span>
+   243→              {data?.timestamp && (
+   244→                <span className="text-[10px] text-slate-500 truncate">
+   245→                  · {relativeTime(new Date(data.timestamp).toISOString())}
+   246→                </span>
+   247→              )}
+   248→            </>
+   249→          )}
+   250→        </div>
+   251→        <Button
+   252→          size="sm"
+   253→          variant="default"
+   254→          onClick={runAnalysis}
+   255→          disabled={busy}
+   256→          className="h-7 text-xs gap-1.5 shrink-0 bg-amber-500/20 text-amber-200 border border-amber-500/30 hover:bg-amber-500/30"
+   257→        >
+   258→          {running ? (
+   259→            <Loader2 className="w-3 h-3 animate-spin" />
+   260→          ) : (
+   261→            <Zap className="w-3 h-3" />
+   262→          )}
+   263→          Run Analysis
+   264→        </Button>
+   265→      </div>
+   266→
+   267→      {/* Body */}
+   268→      <div className="flex-1 overflow-y-auto tt-scroll min-h-0">
+   269→        {loading ? (
+   270→          <LoadingSkeleton />
+   271→        ) : error ? (
+   272→          <div className="p-6 text-center">
+   273→            <AlertTriangle className="w-5 h-5 text-red-400 mx-auto mb-2" />
+   274→            <p className="text-xs text-slate-400 mb-3">{error}</p>
+   275→            <Button
+   276→              size="sm"
+   277→              variant="outline"
+   278→              onClick={() => fetchData(false)}
+   279→              className="h-7 text-xs"
+   280→            >
+   281→              Retry
+   282→            </Button>
+   283→          </div>
+   284→        ) : !report ? (
+   285→          <div className="p-6 text-center text-xs text-slate-500">
+   286→            No news intelligence data available.
+   287→          </div>
+   288→        ) : (
+   289→          <div className="p-3 space-y-3">
+   290→            {/* Decision Rule Banner */}
+   291→            {decisionRule && (
+   292→              <div
+   293→                className={`rounded-lg border p-3 flex items-start gap-2.5 ${
+   294→                  decisionRule.shouldWait
+   295→                    ? "bg-red-500/10 border-red-500/30"
+   296→                    : "bg-emerald-500/10 border-emerald-500/30"
+   297→                }`}
+   298→              >
+   299→                {decisionRule.shouldWait ? (
+   300→                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+   301→                ) : (
+   302→                  <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+   303→                )}
+   304→                <div className="min-w-0 flex-1">
+   305→                  <div className="flex items-center gap-2 flex-wrap">
+   306→                    <span
+   307→                      className={`text-[10px] uppercase tracking-wider font-semibold ${
+   308→                        decisionRule.shouldWait ? "text-red-300" : "text-emerald-300"
+   309→                      }`}
+   310→                    >
+   311→                      {decisionRule.shouldWait ? "WAIT" : "CLEAR"}
+   312→                    </span>
+   313→                    <span className="text-[10px] text-slate-500">
+   314→                      Decision Rule
+   315→                    </span>
+   316→                  </div>
+   317→                  <p
+   318→                    className={`text-xs mt-0.5 ${
+   319→                      decisionRule.shouldWait ? "text-red-200" : "text-emerald-200"
+   320→                    }`}
+   321→                  >
+   322→                    {decisionRule.shouldWait
+   323→                      ? decisionRule.reason
+   324→                      : "Conditions clear — news flow stable"}
+   325→                  </p>
+   326→                </div>
+   327→              </div>
+   328→            )}
+   329→
+   330→            {/* AI Summary Card */}
+   331→            {report.aiSummary && (
+   332→              <AISummaryCard summary={report.aiSummary} />
+   333→            )}
+   334→
+   335→            {/* Stats Row */}
+   336→            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+   337→              <StatTile
+   338→                label="Collected"
+   339→                value={report.collectedCount}
+   340→                icon={<Newspaper className="w-3 h-3" />}
+   341→              />
+   342→              <StatTile
+   343→                label="Verified"
+   344→                value={`${report.verifiedCount} (${report.verificationRate}%)`}
+   345→                icon={<Shield className="w-3 h-3" />}
+   346→                accent={
+   347→                  report.verificationRate >= 70
+   348→                    ? "up"
+   349→                    : report.verificationRate >= 40
+   350→                    ? "accent"
+   351→                    : "down"
+   352→                }
+   353→              />
+   354→              <StatTile
+   355→                label="Breaking"
+   356→                value={report.breakingCount}
+   357→                icon={<Flame className="w-3 h-3" />}
+   358→                accent={report.breakingCount > 0 ? "down" : undefined}
+   359→              />
+   360→              <StatTile
+   361→                label="Sources"
+   362→                value={report.sourceCount}
+   363→                icon={<Globe className="w-3 h-3" />}
+   364→              />
+   365→            </div>
+   366→
+   367→            {/* Sentiment Card */}
+   368→            {report.sentiment && <SentimentCard sentiment={report.sentiment} />}
+   369→
+   370→            {/* Market Impact Card */}
+   371→            {report.marketImpact && (
+   372→              <MarketImpactCard impact={report.marketImpact} />
+   373→            )}
+   374→
+   375→            {/* Trade Impact Card */}
+   376→            {report.tradeImpact && (
+   377→              <TradeImpactCard impact={report.tradeImpact} />
+   378→            )}
+   379→
+   380→            {/* Breaking News Section */}
+   381→            {report.breakingNews.length > 0 && (
+   382→              <BreakingNewsSection items={report.breakingNews} />
+   383→            )}
+   384→
+   385→            {/* Verified News List */}
+   386→            <VerifiedNewsList items={report.verifiedItems} />
+   387→          </div>
+   388→        )}
+   389→      </div>
+   390→    </div>
+   391→  );
+   392→}
+   393→
+   394→// ---------- Subcomponents ----------
+   395→
+   396→function StatTile({
+   397→  label,
+   398→  value,
+   399→  icon,
+   400→  accent,
+   401→}: {
+   402→  label: string;
+   403→  value: string | number;
+   404→  icon?: React.ReactNode;
+   405→  accent?: "up" | "down" | "accent" | "dim";
+   406→}) {
+   407→  const accentClass =
+   408→    accent === "up"
+   409→      ? "tt-text-up"
+   410→      : accent === "down"
+   411→      ? "tt-text-down"
+   412→      : accent === "accent"
+   413→      ? "tt-text-accent"
+   414→      : accent === "dim"
+   415→      ? "tt-text-dim"
+   416→      : "text-slate-200";
+   417→  return (
+   418→    <div className="bg-white/[0.02] border border-white/5 rounded-lg p-2.5">
+   419→      <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-slate-500">
+   420→        {icon}
+   421→        <span>{label}</span>
+   422→      </div>
+   423→      <div className={`tt-mono text-base font-semibold mt-1 ${accentClass}`}>
+   424→        {value}
+   425→      </div>
+   426→    </div>
+   427→  );
+   428→}
+   429→
+   430→function AISummaryCard({ summary }: { summary: NewsAISummary }) {
+   431→  return (
+   432→    <div className="rounded-lg border border-violet-500/20 bg-violet-500/[0.04] p-3">
+   433→      <div className="flex items-center gap-1.5 mb-2">
+   434→        <Sparkles className="w-3.5 h-3.5 text-violet-300" />
+   435→        <span className="text-[10px] uppercase tracking-wider text-violet-300/80">
+   436→          AI Summary
+   437→        </span>
+   438→        {summary.actionRequired && (
+   439→          <span className="ml-auto text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border bg-red-500/15 text-red-300 border-red-500/30">
+   440→            Action Required
+   441→          </span>
+   442→        )}
+   443→      </div>
+   444→      <h3 className="text-sm font-semibold text-slate-100 leading-snug mb-1.5">
+   445→        {summary.headline}
+   446→      </h3>
+   447→      <p className="text-xs text-slate-400 leading-relaxed mb-2">
+   448→        {summary.plainLanguageSummary}
+   449→      </p>
+   450→      {summary.keyTakeaways.length > 0 && (
+   451→        <ul className="space-y-1 mb-2">
+   452→          {summary.keyTakeaways.map((k, i) => (
+   453→            <li
+   454→              key={i}
+   455→              className="text-xs text-slate-300 leading-relaxed flex gap-1.5"
+   456→            >
+   457→              <span className="text-violet-400 mt-0.5">▸</span>
+   458→              <span>{k}</span>
+   459→            </li>
+   460→          ))}
+   461→        </ul>
+   462→      )}
+   463→      <div className="mt-2 pt-2 border-t border-white/5">
+   464→        <span className="text-[10px] uppercase tracking-wider text-slate-500">
+   465→          Implications
+   466→        </span>
+   467→        <p className="text-xs text-slate-400 leading-relaxed mt-0.5">
+   468→          {summary.marketImplications}
+   469→        </p>
+   470→      </div>
+   471→    </div>
+   472→  );
+   473→}
+   474→
+   475→function SentimentCard({ sentiment }: { sentiment: NewsSentiment }) {
+   476→  return (
+   477→    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+   478→      <div className="flex items-center justify-between mb-2">
+   479→        <div className="flex items-center gap-1.5">
+   480→          <Radio className="w-3.5 h-3.5 text-sky-300" />
+   481→          <span className="text-[10px] uppercase tracking-wider text-slate-500">
+   482→            Sentiment
+   483→          </span>
+   484→        </div>
+   485→        <div className="flex items-center gap-2">
+   486→          <span
+   487→            className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+   488→              SENTIMENT_BADGE[sentiment.direction] ?? SENTIMENT_BADGE.neutral
+   489→            }`}
+   490→          >
+   491→            {directionIcon(sentiment.direction)}
+   492→            {sentiment.direction}
+   493→          </span>
+   494→          <span className="tt-mono text-[11px] text-slate-300">
+   495→            {sentiment.confidence}%
+   496→          </span>
+   497→        </div>
+   498→      </div>
+   499→
+   500→      {sentiment.currencies.length > 0 && (
+   501→        <div className="flex flex-wrap gap-1.5 mb-2">
+   502→          {sentiment.currencies.map((c) => (
+   503→            <span
+   504→              key={c.currency}
+   505→              className={`inline-flex items-center gap-1 tt-mono text-[10px] px-1.5 py-0.5 rounded border ${
+   506→                c.impact === "positive"
+   507→                  ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+   508→                  : c.impact === "negative"
+   509→                  ? "bg-red-500/15 text-red-300 border-red-500/30"
+   510→                  : "bg-slate-500/15 text-slate-300 border-slate-500/30"
+   511→              }`}
+   512→            >
+   513→              {c.currency} · {c.strength}
+   514→            </span>
+   515→          ))}
+   516→        </div>
+   517→      )}
+   518→
+   519→      {sentiment.reasoning && (
+   520→        <p className="text-[11px] text-slate-500 leading-relaxed italic">
+   521→          {sentiment.reasoning}
+   522→        </p>
+   523→      )}
+   524→    </div>
+   525→  );
+   526→}
+   527→
+   528→function MarketImpactCard({ impact }: { impact: NewsMarketImpact }) {
+   529→  return (
+   530→    <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3">
+   531→      <div className="flex items-center justify-between mb-2">
+   532→        <div className="flex items-center gap-1.5">
+   533→          <Globe className="w-3.5 h-3.5 text-amber-300" />
+   534→          <span className="text-[10px] uppercase tracking-wider text-slate-500">
+   535→            Market Impact
+   536→          </span>
+   537→        </div>
+   538→        <div className="flex items-center gap-2">
+   539→          <span
+   540→            className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+   541→              IMPACT_BADGE[impact.overallImpact] ?? IMPACT_BADGE.low
+   542→            }`}
+   543→          >
+   544→            {impact.overallImpact}
+   545→          </span>
+   546→          <span className="tt-mono text-[11px] text-slate-300">
+   547→            {impact.confidence}%
+   548→          </span>
+   549→        </div>
+   550→      </div>
+   551→
+   552→      <div className="grid grid-cols-2 gap-2 mb-2 text-[10px]">
+   553→        <div>
+   554→          <div className="uppercase tracking-wider text-slate-500 mb-0.5">
+   555→            Duration
+   556→          </div>
+   557→          <div className="text-xs text-slate-300 capitalize">
+   558→            {impact.expectedDuration}
+   559→          </div>
+   560→        </div>
+   561→        <div>
+   562→          <div className="uppercase tracking-wider text-slate-500 mb-0.5">
+   563→            Categories
+   564→          </div>
+   565→          <div className="text-xs text-slate-300 truncate">
+   566→            {impact.affectedCategories.length > 0
+   567→              ? impact.affectedCategories.join(", ")
+   568→              : "—"}
+   569→          </div>
+   570→        </div>
+   571→      </div>
+   572→
+   573→      {impact.symbols.length > 0 && (
+   574→        <div className="space-y-1.5">
+   575→          {impact.symbols.slice(0, 6).map((s) => (
+   576→            <div key={s.symbol} className="flex items-center gap-2">
+   577→              <span className="tt-mono text-[11px] text-slate-200 w-16 shrink-0">
+   578→                {s.symbol}
+   579→              </span>
+   580→              <span
+   581→                className={`shrink-0 ${
+   582→                  s.impact === "bullish"
+   583→                    ? "tt-text-up"
+   584→                    : s.impact === "bearish"
+   585→                    ? "tt-text-down"
+   586→                    : "tt-text-dim"
+   587→                }`}
+   588→              >
+   589→                {directionIcon(s.impact)}
+   590→              </span>
+   591→              <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+   592→                <div
+   593→                  className={`h-full rounded-full ${
+   594→                    s.impact === "bullish"
+   595→                      ? "bg-emerald-500"
+   596→                      : s.impact === "bearish"
+   597→                      ? "bg-red-500"
+   598→                      : "bg-slate-500"
+   599→                  }`}
+   600→                  style={{ width: `${Math.min(100, Math.max(0, s.strength))}%` }}
+   601→                />
+   602→              </div>
+   603→              <span className="tt-mono text-[10px] text-slate-400 w-8 text-right">
+   604→                {s.strength}
+   605→              </span>
+   606→            </div>
+   607→          ))}
+   608→        </div>
+   609→      )}
+   610→    </div>
+   611→  );
+   612→}
+   613→
+   614→function TradeImpactCard({ impact }: { impact: TradeImpactResult }) {
+   615→  const hasAffected = impact.affectedTrades.length > 0;
+   616→  return (
+   617→    <div
+   618→      className={`rounded-lg border p-3 ${
+   619→        impact.hasCriticalImpact
+   620→          ? "border-red-500/40 bg-red-500/[0.06]"
+   621→          : "border-white/5 bg-white/[0.02]"
+   622→      }`}
+   623→    >
+   624→      <div className="flex items-center justify-between mb-2">
+   625→        <div className="flex items-center gap-1.5">
+   626→          <Shield className="w-3.5 h-3.5 text-sky-300" />
+   627→          <span className="text-[10px] uppercase tracking-wider text-slate-500">
+   628→            Trade Impact
+   629→          </span>
+   630→        </div>
+   631→        {impact.hasCriticalImpact && (
+   632→          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border bg-red-500/20 text-red-300 border-red-500/40">
+   633→            Critical
+   634→          </span>
+   635→        )}
+   636→      </div>
+   637→
+   638→      {!hasAffected ? (
+   639→        <p className="text-xs text-slate-500 italic">
+   640→          No open trades affected by current news.
+   641→        </p>
+   642→      ) : (
+   643→        <div className="space-y-2">
+   644→          {impact.affectedTrades.map((t) => (
+   645→            <div
+   646→              key={t.signalId}
+   647→              className="rounded-md border border-white/5 bg-black/20 p-2"
+   648→            >
+   649→              <div className="flex items-center gap-2 flex-wrap mb-1">
+   650→                <span className="tt-mono text-xs font-semibold text-slate-100">
+   651→                  {t.symbol}
+   652→                </span>
+   653→                <span className="text-[10px] uppercase tracking-wider text-slate-500">
+   654→                  {t.direction}
+   655→                </span>
+   656→                <span
+   657→                  className={`ml-auto text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+   658→                    TRADE_IMPACT_BADGE[t.impactLevel] ?? TRADE_IMPACT_BADGE.low
+   659→                  }`}
+   660→                >
+   661→                  {t.impactLevel}
+   662→                </span>
+   663→                <span
+   664→                  className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+   665→                    REC_BADGE[t.recommendation] ?? REC_BADGE.hold
+   666→                  }`}
+   667→                >
+   668→                  {t.recommendation.replace(/_/g, " ")}
+   669→                </span>
+   670→              </div>
+   671→              <p className="text-[11px] text-slate-500 leading-relaxed">
+   672→                {t.reasoning}
+   673→              </p>
+   674→            </div>
+   675→          ))}
+   676→        </div>
+   677→      )}
+   678→    </div>
+   679→  );
+   680→}
+   681→
+   682→function BreakingNewsSection({ items }: { items: BreakingItem[] }) {
+   683→  return (
+   684→    <div className="rounded-lg border border-red-500/30 bg-red-500/[0.04] overflow-hidden">
+   685→      <div className="flex items-center gap-2 px-3 py-2 border-b border-red-500/20">
+   686→        <Flame className="w-3.5 h-3.5 text-red-400" />
+   687→        <span className="text-[10px] uppercase tracking-wider text-red-300 font-semibold">
+   688→          Breaking News
+   689→        </span>
+   690→        <span className="tt-mono text-[10px] text-slate-500 ml-auto">
+   691→          {items.length}
+   692→        </span>
+   693→      </div>
+   694→      <ul className="divide-y divide-red-500/10">
+   695→        {items.map((n, i) => (
+   696→          <li
+   697→            key={i}
+   698→            className="px-3 py-2 border-l-2 border-red-500/60 flex items-start gap-2"
+   699→          >
+   700→            <span className="relative flex h-2 w-2 mt-1.5 shrink-0">
+   701→              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+   702→              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+   703→            </span>
+   704→            <div className="min-w-0 flex-1">
+   705→              <p className="text-xs font-semibold text-slate-100 leading-snug">
+   706→                {n.title}
+   707→              </p>
+   708→              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+   709→                <span className="text-[10px] text-slate-500">{n.source}</span>
+   710→                <span className="text-[10px] text-slate-600">·</span>
+   711→                <span className="tt-mono text-[10px] text-amber-300">
+   712→                  score {n.verificationScore}
+   713→                </span>
+   714→                <span className="text-[10px] text-slate-600">·</span>
+   715→                <span className="tt-mono text-[10px] text-slate-500">
+   716→                  {relativeTime(n.publishedAt)}
+   717→                </span>
+   718→                {n.symbols.slice(0, 4).map((s) => (
+   719→                  <span
+   720→                    key={s}
+   721→                    className="tt-mono text-[10px] px-1 py-0.5 rounded border bg-white/5 text-slate-400 border-white/10"
+   722→                  >
+   723→                    {s}
+   724→                  </span>
+   725→                ))}
+   726→              </div>
+   727→            </div>
+   728→          </li>
+   729→        ))}
+   730→      </ul>
+   731→    </div>
+   732→  );
+   733→}
+   734→
+   735→function VerifiedNewsList({ items }: { items: VerifiedItem[] }) {
+   736→  if (items.length === 0) {
+   737→    return null;
+   738→  }
+   739→  return (
+   740→    <div className="rounded-lg border border-white/5 bg-white/[0.02] overflow-hidden">
+   741→      <div className="flex items-center gap-2 px-3 py-2 border-b border-white/5">
+   742→        <Newspaper className="w-3.5 h-3.5 text-slate-400" />
+   743→        <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+   744→          Verified News
+   745→        </span>
+   746→        <span className="tt-mono text-[10px] text-slate-500 ml-auto">
+   747→          {items.length}
+   748→        </span>
+   749→      </div>
+   750→      <ul className="divide-y divide-white/5">
+   751→        {items.map((item, i) => (
+   752→          <li
+   753→            key={i}
+   754→            className={`p-3 ${item.isVerified ? "" : "opacity-60"}`}
+   755→          >
+   756→            <div className="flex items-start gap-2 mb-1">
+   757→              <h4 className="text-xs font-semibold text-slate-100 leading-snug flex-1">
+   758→                {item.title}
+   759→              </h4>
+   760→              {!item.isVerified && (
+   761→                <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border bg-amber-500/15 text-amber-300 border-amber-500/30 shrink-0">
+   762→                  Unverified
+   763→                </span>
+   764→              )}
+   765→            </div>
+   766→            <p className="text-[11px] text-slate-500 leading-relaxed line-clamp-2 mb-1.5">
+   767→              {item.summary}
+   768→            </p>
+   769→
+   770→            {/* Verification score bar */}
+   771→            <div className="flex items-center gap-2 mb-1.5">
+   772→              <span className="text-[10px] uppercase tracking-wider text-slate-500 shrink-0">
+   773→                Score
+   774→              </span>
+   775→              <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
+   776→                <div
+   777→                  className={`h-full rounded-full ${scoreColor(
+   778→                    item.verificationScore
+   779→                  )}`}
+   780→                  style={{
+   781→                    width: `${Math.min(100, Math.max(0, item.verificationScore))}%`,
+   782→                  }}
+   783→                />
+   784→              </div>
+   785→              <span className="tt-mono text-[10px] text-slate-400 w-7 text-right">
+   786→                {item.verificationScore}
+   787→              </span>
+   788→            </div>
+   789→
+   790→            {/* Footer: source, cross-source count, related, symbols, time */}
+   791→            <div className="flex items-center gap-1.5 flex-wrap">
+   792→              <span className="text-[10px] text-slate-400">{item.source}</span>
+   793→              {item.crossSourceCount > 1 && (
+   794→                <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border bg-sky-500/15 text-sky-300 border-sky-500/30">
+   795→                  {item.crossSourceCount} sources
+   796→                </span>
+   797→              )}
+   798→              {item.relatedSources.slice(0, 2).map((r, idx) => (
+   799→                <span
+   800→                  key={idx}
+   801→                  className="text-[10px] text-slate-500 px-1 py-0.5 rounded bg-white/[0.03] border border-white/5"
+   802→                >
+   803→                  {r}
+   804→                </span>
+   805→              ))}
+   806→              {item.symbols.slice(0, 3).map((s) => (
+   807→                <span
+   808→                  key={s}
+   809→                  className="tt-mono text-[10px] px-1 py-0.5 rounded border bg-white/5 text-slate-400 border-white/10"
+   810→                >
+   811→                  {s}
+   812→                </span>
+   813→              ))}
+   814→              <span className="tt-mono text-[10px] text-slate-500 ml-auto">
+   815→                {relativeTime(item.publishedAt)} · {formatTime(item.publishedAt)}
+   816→              </span>
+   817→            </div>
+   818→          </li>
+   819→        ))}
+   820→      </ul>
+   821→    </div>
+   822→  );
+   823→}
+   824→
+   825→// ---------- Loading skeleton ----------
+   826→
+   827→function LoadingSkeleton() {
+   828→  return (
+   829→    <div className="p-3 space-y-3">
+   830→      {/* Decision banner skeleton */}
+   831→      <Skeleton className="h-14 w-full bg-white/5" />
+   832→      {/* AI summary skeleton */}
+   833→      <Skeleton className="h-32 w-full bg-white/5" />
+   834→      {/* Stats row skeleton */}
+   835→      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+   836→        {Array.from({ length: 4 }).map((_, i) => (
+   837→          <Skeleton key={i} className="h-14 w-full bg-white/5" />
+   838→        ))}
+   839→      </div>
+   840→      {/* Sentiment + market impact skeletons */}
+   841→      <Skeleton className="h-24 w-full bg-white/5" />
+   842→      <Skeleton className="h-36 w-full bg-white/5" />
+   843→      {/* Verified list skeleton */}
+   844→      <div className="space-y-2">
+   845→        {Array.from({ length: 4 }).map((_, i) => (
+   846→          <Skeleton key={i} className="h-20 w-full bg-white/5" />
+   847→        ))}
+   848→      </div>
+   849→    </div>
+   850→  );
+   851→}
+   852→
+   853→export default NewsIntelligencePanel;
+   854→

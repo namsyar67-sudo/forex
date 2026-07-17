@@ -18,6 +18,7 @@ const VIEWS = [
   { id: "terminal", label: "Terminal" },
   { id: "agents", label: "Multi-Agent" },
   { id: "newsintel", label: "News Intel" },
+  { id: "audit", label: "Audit" },
   { id: "analyst", label: "AI Analyst" },
   { id: "signals", label: "Signals" },
   { id: "monitor", label: "Monitor" },

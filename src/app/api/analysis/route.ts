@@ -1,26 +1,19 @@
 import { NextResponse } from "next/server";
-import { analyzeAll, buildAnalysisSummary } from "@/lib/market/analysis";
+import { getAllAnalysisCached, buildAnalysisSummary } from "@/lib/market/analysis";
 import { db } from "@/lib/db";
-import { getOrCompute, getCached, setCached } from "@/lib/cache";
+import { getCached, setCached } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function GET() {
-  // Cache the heavy analysis computation for 8 seconds
-  const { lightAnalysis, summaries } = await getOrCompute(
-    "analysis:all",
-    8000,
-    async () => {
-      const all = await analyzeAll();
-      const sums = all.map((a) => buildAnalysisSummary(a));
-      const light = all.map((a) => {
-        const { candles, ...rest } = a;
-        return rest;
-      });
-      return { lightAnalysis: light, summaries: sums };
-    }
-  );
+  // Use shared cached analysis (also used by scanner)
+  const all = await getAllAnalysisCached();
+  const summaries = all.map((a) => buildAnalysisSummary(a));
+  const lightAnalysis = all.map((a) => {
+    const { candles, ...rest } = a;
+    return rest;
+  });
 
   // Persist top decisions — only every 60s (rate-limited via cache)
   try {

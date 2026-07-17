@@ -16,6 +16,9 @@ interface TerminalHeaderProps {
 
 const VIEWS = [
   { id: "terminal", label: "Terminal" },
+  { id: "analyst", label: "AI Analyst" },
+  { id: "signals", label: "Signals" },
+  { id: "monitor", label: "Monitor" },
   { id: "analysis", label: "Analysis" },
   { id: "smartmoney", label: "Smart Money" },
   { id: "mft", label: "MTF" },

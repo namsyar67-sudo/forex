@@ -38,6 +38,14 @@ const TradeJournalPanel = lazy(() => import("@/components/terminal/v2/trade-jour
 const AIMemoryPanel = lazy(() => import("@/components/terminal/v2/ai-memory-panel"));
 const ReanalyzeDialog = lazy(() => import("@/components/terminal/v2/reanalyze-dialog"));
 
+// V3 components — AI Trading Analyst
+const SignalPanel = lazy(() => import("@/components/terminal/v3/signal-panel"));
+const ScannerPanel = lazy(() => import("@/components/terminal/v3/scanner-panel"));
+const NotificationFeed = lazy(() => import("@/components/terminal/v3/notification-feed"));
+const TradeMonitorPanel = lazy(() => import("@/components/terminal/v3/trade-monitor-panel"));
+const SignalHistoryPanel = lazy(() => import("@/components/terminal/v3/signal-history-panel"));
+const SignalDetailDialog = lazy(() => import("@/components/terminal/v3/signal-detail-dialog"));
+
 function PanelFallback({ label }: { label: string }) {
   return (
     <div className="tt-panel rounded-xl h-full flex items-center justify-center text-xs text-slate-500">
@@ -63,6 +71,8 @@ export default function TerminalPage() {
   const [positionsVersion, setPositionsVersion] = useState(0);
   const [reanalyzeOpen, setReanalyzeOpen] = useState(false);
   const [probData, setProbData] = useState<{ buy: number; sell: number; wait: number } | null>(null);
+  const [signalDetailId, setSignalDetailId] = useState<string | null>(null);
+  const [signalDetailOpen, setSignalDetailOpen] = useState(false);
 
   // Load instruments once (client-side fetch via API)
   useEffect(() => {
@@ -123,6 +133,60 @@ export default function TerminalPage() {
     return () => {
       cancelled = true;
       clearInterval(t);
+    };
+  }, []);
+
+  // V3 AUTO-START WATCH MODE — runs automatically on launch, no button needed
+  // 1. Market scanner: scans all pairs every 60s for new opportunities
+  // 2. Trade monitor: monitors active signals every 15s for TP/SL/structure changes
+  useEffect(() => {
+    let scanCancelled = false;
+    let monitorCancelled = false;
+
+    // Initial scan after 5s (let other things load first)
+    const scanInitial = setTimeout(async () => {
+      try {
+        await fetch("/api/scanner", { method: "POST" });
+      } catch {
+        // ignore
+      }
+    }, 5000);
+
+    // Recurring scan every 60s
+    const scanInterval = setInterval(async () => {
+      if (scanCancelled) return;
+      try {
+        await fetch("/api/scanner", { method: "POST" });
+      } catch {
+        // ignore
+      }
+    }, 60000);
+
+    // Trade monitor every 15s (starts after 10s)
+    const monitorInitial = setTimeout(async () => {
+      try {
+        await fetch("/api/trade-events", { method: "POST" });
+      } catch {
+        // ignore
+      }
+    }, 10000);
+
+    const monitorInterval = setInterval(async () => {
+      if (monitorCancelled) return;
+      try {
+        await fetch("/api/trade-events", { method: "POST" });
+      } catch {
+        // ignore
+      }
+    }, 15000);
+
+    return () => {
+      scanCancelled = true;
+      monitorCancelled = true;
+      clearTimeout(scanInitial);
+      clearTimeout(monitorInitial);
+      clearInterval(scanInterval);
+      clearInterval(monitorInterval);
     };
   }, []);
 
@@ -221,6 +285,52 @@ export default function TerminalPage() {
               <div className="h-[360px] min-h-0">
                 <AIChat />
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeView === "analyst" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
+            <div className="lg:col-span-5 min-h-0">
+              <Suspense fallback={<PanelFallback label="Market Scanner" />}>
+                <ScannerPanel />
+              </Suspense>
+            </div>
+            <div className="lg:col-span-4 min-h-0">
+              <Suspense fallback={<PanelFallback label="Active Signals" />}>
+                <SignalPanel />
+              </Suspense>
+            </div>
+            <div className="lg:col-span-3 min-h-0">
+              <Suspense fallback={<PanelFallback label="Notifications" />}>
+                <NotificationFeed />
+              </Suspense>
+            </div>
+          </div>
+        )}
+
+        {activeView === "signals" && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
+            <Suspense fallback={<PanelFallback label="Active Signals" />}>
+              <SignalPanel />
+            </Suspense>
+            <Suspense fallback={<PanelFallback label="Signal History" />}>
+              <SignalHistoryPanel onSelectSignal={(id) => { setSignalDetailId(id); setSignalDetailOpen(true); }} />
+            </Suspense>
+          </div>
+        )}
+
+        {activeView === "monitor" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
+            <div className="lg:col-span-8 min-h-0">
+              <Suspense fallback={<PanelFallback label="Trade Monitor" />}>
+                <TradeMonitorPanel onSelectSignal={(id) => { setSignalDetailId(id); setSignalDetailOpen(true); }} />
+              </Suspense>
+            </div>
+            <div className="lg:col-span-4 min-h-0">
+              <Suspense fallback={<PanelFallback label="Notifications" />}>
+                <NotificationFeed />
+              </Suspense>
             </div>
           </div>
         )}
@@ -379,6 +489,9 @@ export default function TerminalPage() {
       <AlertsPanel open={alertsOpen} onOpenChange={setAlertsOpen} />
       <Suspense fallback={null}>
         <ReanalyzeDialog open={reanalyzeOpen} onOpenChange={setReanalyzeOpen} symbol={selectedSymbol} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <SignalDetailDialog open={signalDetailOpen} onOpenChange={setSignalDetailOpen} signalId={signalDetailId} />
       </Suspense>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       <OpenPositionDialog

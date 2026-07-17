@@ -412,3 +412,135 @@ Stage Summary:
 - Advanced alert engine monitors BOS/CHOCH/FVG/OB/trend/risk/level changes.
 - AI Copilot upgraded with smart-money/ICT/MTF/probability/news/heatmap context.
 - Browser verification: main page loads with all V2 nav + ReAnalyze button. V2 view rendering is limited by sandbox memory constraints during Turbopack compilation; all V2 APIs verified working via curl.
+
+---
+Task ID: V3-1
+Agent: Sub-agent (general-purpose)
+Task: Build Signal + Scanner + Notification panels (V3)
+
+Work Log:
+- Read worklog.md, /api/signals/active, /api/signals/[id], /api/scanner, /api/notifications, /api/notifications/[id] routes; Prisma schema (ActiveSignal, ScanResult, TradeEvent); lib/scanner/engine.ts; lib/format.ts; lib/market/instruments.ts (INSTRUMENT_MAP, digits per symbol); globals.css design tokens (tt-panel, tt-scroll, tt-mono, tt-text-up/down/dim/accent); existing v2 panels (scenarios-panel, trade-journal-panel) for styling conventions; Badge + Button UI components.
+
+- Created `/home/z/my-project/src/components/terminal/v3/signal-panel.tsx`:
+  * `"use client"` panel fetching `/api/signals/active` every 10s (silent refresh after first load).
+  * Header: Activity icon, "Active Signals" title, count badge (emerald), Refresh icon button, and "Scan Now" button (emerald) that POSTs `/api/scanner` and toasts result with new-signal count.
+  * Each signal rendered as a card with:
+    - Top row: symbol (bold), direction badge (long=emerald / short=red w/ TrendingUp/Down icon), signal-type badge (STRONG_BUY..STRONG_SELL colored), relative timestamp.
+    - Quality Score bar 0-100 with bucketed colors: <50 red, 50-70 amber, 70-85 emerald, >85 bright emerald-300 with shadow glow.
+    - 2-col grid: Confidence %, Live PnL (signed, tt-text-up/down colored).
+    - 3x2 price grid: Entry / Current / SL (red) / TP1 / TP2 / TP3 (emerald), using INSTRUMENT_MAP digits per symbol + formatPrice.
+    - KV rows: Risk/Reward (1:X, tt-text-accent), Risk Level badge (low=slate, medium=amber, high=orange, extreme=red), Expected Duration, Expected Probability.
+    - Market Session display.
+    - Reasons as emerald chips with Check icon.
+    - Summary text (line-clamp-2).
+    - Footer: Close button (red) sending PATCH `{action:"close", reason}` to `/api/signals/[id]`, with spinner while in-flight and toast on success showing symbol + final PnL.
+  * Empty state, loading skeleton (3 placeholder cards with nested skeletons).
+  * Imports `toast` from sonner, `Skeleton` from ui, lucide-react icons.
+
+- Created `/home/z/my-project/src/components/terminal/v3/scanner-panel.tsx`:
+  * `"use client"` panel fetching `/api/scanner` (GET) every 30s.
+  * Header: ScanLine icon, "Market Scanner" title, last-scan relative time, Refresh icon button, "Run Scan" button (sky) that POSTs `/api/scanner` and toasts new-signal + top-opportunity counts.
+  * Ranked list of all scanned pairs (sorted by rank asc). Each row:
+    - Rank badge (Medal icon + tint for top 3, "#N" mono otherwise).
+    - Symbol (bold) + direction badge + signal-type badge.
+    - Quality mini progress bar (bucketed color) with numeric score.
+    - Confidence % (colored: >=75 emerald, >=50 amber, <50 red, WAIT=dim).
+    - Top 2 reasons as small chips (parsed from JSON string fallback to CSV).
+    - Relative timestamp + rank label (GOLD/SILVER/BRONZE) for top 3.
+  * Top 3 highlighted with subtle gradient-tinted borders + glow shadows: gold (#1 amber-400), silver (#2 slate-300), bronze (#3 orange-500).
+  * Empty state with "Run Scan now" CTA, loading skeleton (6 placeholder rows).
+
+- Created `/home/z/my-project/src/components/terminal/v3/notification-feed.tsx`:
+  * `"use client"` panel fetching `/api/notifications?limit=50` every 5s.
+  * Header: Bell icon, "Notifications" title, unread-count badge (amber), Refresh icon button, "Mark Read" button (PATCH each unread to `/api/notifications/[id]`), "Clear" button (DELETE each event).
+  * Scrollable list (newest first from API order), divided rows. Each event:
+    - Priority-colored left border (critical=red, high=orange, medium=amber, low=slate).
+    - Type emoji icon mapped per spec (NEW_SIGNAL=🎯, HIGH_IMPACT_NEWS=📰, CLOSE_POSITION=🚫, MOVE_STOP_LOSS=📢, TAKE_PROFIT_HIT=✅, MARKET_STRUCTURE_CHANGED=📊, VOLATILITY_ALERT=⚡, LIQUIDITY_ALERT=💧, CONFIDENCE_CHANGED=📈, BOS_DETECTED=🔗, CHOCH_DETECTED=⚠️, OB_BROKEN=🧱, TREND_CHANGE=🔄, RISK_ELEVATED=⚠️, fallback 🔔).
+    - Title (bold), message via `whitespace-pre-wrap` to preserve newlines.
+    - Footer meta chips: symbol tag, confidence % (if present), event type label.
+    - Unread events have subtle amber background tint + small priority-colored dot indicator.
+    - Relative timestamp.
+  * Empty state, loading skeleton (6 placeholder rows with priority left border).
+  * Buttons show Loader2 spinners while in-flight; toasts for mark-all / clear-all results.
+
+Stage Summary:
+- Three V3 panels delivered: signal-panel.tsx, scanner-panel.tsx, notification-feed.tsx.
+- All panels follow the dark glassmorphism Bloomberg-terminal design system (tt-panel, tt-scroll, tt-mono, tt-text-* tokens, text-[10px] uppercase labels, text-xs body, text-sm font-semibold titles).
+- All panels auto-refresh on their respective cadences (10s / 30s / 5s) and expose action buttons (Scan Now / Run Scan / Mark Read / Clear) that mutate state and toast results via sonner.
+- TypeScript typecheck passes cleanly for all three new files (pre-existing repo errors elsewhere are unrelated).
+- No existing files modified; only new files created under `src/components/terminal/v3/`.
+- Next: orchestrator can mount these panels in the dashboard layout (e.g., a V3 view tab) and wire up shared refresh events if desired.
+
+---
+Task ID: V3-2
+Agent: Sub-agent (general-purpose)
+Task: Build V3 components — Trade Monitor panel, Signal Detail dialog, Signal History panel
+
+Work Log:
+- Read worklog.md (V1/V2 history + V3-1 scanner/signal panels already created by prior subagent) to align with established patterns. Inspected existing V3 `signal-panel.tsx` and `scanner-panel.tsx` to mirror ActiveSignal type, badge maps, helper functions (digitsFor, pnlColor, signedPct, statusBadge), and the dark glassmorphism design system.
+- Confirmed API contract by reading the three relevant routes:
+  * `/api/signals/active` GET → `{ signals: ActiveSignal[], count, time }` (enriched with livePnl, currentPrice from quotes).
+  * `/api/signals/[id]` GET → `{ signal: ActiveSignal (with parsed reasons/indicators), events: TradeEvent[], time }` and PATCH `{action:"close", reason}` for manual close.
+  * `/api/signals?status=...&limit=50` GET → `{ signals: ActiveSignal[], time }`.
+- Confirmed Prisma schema for `ActiveSignal` (status enum, tp1Hit/tp2Hit/tp3Hit, closedAt, closeReason, closePnl) and `TradeEvent` (type enum, priority low/medium/high/critical, confidence, reason, message).
+- Confirmed `@/components/ui/dialog`, `badge`, `progress`, `button`, `skeleton` exports and the `tt-panel`, `tt-glass-strong`, `tt-mono`, `tt-scroll`, `tt-text-up/down/dim/accent` design tokens in globals.css.
+
+Created `src/components/terminal/v3/trade-monitor-panel.tsx` (636 lines):
+  * `"use client"` named export `TradeMonitorPanel` with optional `onSelectSignal?: (signalId: string) => void` prop (parent wires to signal-detail-dialog).
+  * Fetches `/api/signals/active` on mount + every 5s (silent background refresh after first load; toast only on first-load error).
+  * Header: Activity icon + "Trade Monitor" + count chip + a pulsing "LIVE" indicator (red dot with `animate-ping` ring) + refresh button (Loader2 spinner while refreshing).
+  * Summary bar (4 cols, hidden until data loads): Active count, Total PnL (sum of livePnl, colored, emphasized), Best performer ("SYM +X.XX%"), Worst performer ("SYM -X.XX%").
+  * Each active signal rendered as a detailed `TradeCard`:
+    - Top row: clickable symbol (emerald hover if onSelect wired), direction badge (emerald/red with TrendingUp/Down icon), status badge (active=emerald, tp1_hit=amber, tp2_hit=emerald, tp3_hit=emerald), relative time since createdAt.
+    - Live PnL displayed as a large `text-2xl font-bold` colored number with `signedPct` formatting, paired with TP1/TP2/TP3 status badges (each badge shows ✓ icon + label in emerald when hit, otherwise a muted dot + label).
+    - `PriceProgressBar` sub-component: relative-positioned horizontal bar spanning the min..max of {SL, Entry, TP1, TP2, TP3}. Track is `bg-white/10 h-1.5`. Filled portion goes from Entry to Current Price (emerald if profit, red if loss, with subtle glow shadow). Vertical tick marks at SL (red), Entry (white), TP1/2/3 (emerald). Below-bar labels (SL/E/1/2/3). Current price shown as a pulsing white dot with emerald ring, with a small mono price label above the dot.
+    - Distance to TP1 and Distance to SL cells (using distToTP1/distToSL fields, formatted as signed %).
+    - Mini grid (5 cols): Confidence %, Quality score, Risk level (badge), RR (1:X.X), Session.
+    - Footer: "Opened Xm ago" label + Close Trade button (PATCH `{action:"close"}` to `/api/signals/[id]`, toast on success/failure, Loader2 spinner while closing, then silent refresh).
+  * Empty state: "No active trades being monitored. Signals will appear here when the scanner finds opportunities." (icon + centered text).
+  * Loading skeleton: 4 summary cells + 3 detailed card placeholders matching the actual card layout.
+
+Created `src/components/terminal/v3/signal-detail-dialog.tsx` (742 lines):
+  * `"use client"` named export `SignalDetailDialog` with props `{ open: boolean; onOpenChange: (o: boolean) => void; signalId: string | null }`.
+  * When `open && signalId` is set, fetches `/api/signals/[signalId]`. State resets on close to avoid stale flash.
+  * Uses `tt-glass-strong` DialogContent with `max-w-2xl max-h-[88vh] p-0 flex flex-col overflow-hidden` for sticky header/footer + scrollable body.
+  * Header (sticky): symbol + direction badge + signalType badge + relative time + signal ID mono description.
+  * Body (scrollable):
+    - Top card: SVG `QualityRing` (circular donut, color by score: emerald-300 > 85, emerald-400 > 70, amber-400 > 50, red-400 otherwise; shows score number + "Quality" label inside) paired with 4-cell grid: Live PnL (big colored), Confidence, Probability, RR.
+    - "Trade Setup" section: 3-col grid of Entry / Current / SL / TP1 / TP2 / TP3 (each PriceCell with hit ✓ marker if tpNHit=true; SL=red, TPs=emerald). Below: 3-col grid of Risk Level (badge), Session, Expected Duration.
+    - "Summary" section: signal.summary text in a bordered box.
+    - "Reasons" section: bulleted list with emerald Check icons.
+    - "Indicators" section: 3-col grid iterating `entriesOf(signal.indicators)`, formatting numbers adaptively (`>=1000` → no decimals, `>=100` → 2dp, else 3dp), strings/booleans/objects handled.
+    - "Event Timeline" section: vertical timeline (`pl-5` with absolute vertical line on left). Each `TradeEvent` rendered newest-first as a card with priority badge (critical=red, high=orange, medium=sky, low=slate), type+icon row (icon mapped per event type: NEW_SIGNAL=Zap, HIGH_IMPACT_NEWS=Newspaper, CLOSE_POSITION=X, MOVE_STOP_LOSS=ArrowRightLeft, TAKE_PROFIT_HIT=Target, BOS_DETECTED=TrendingUp, CHOCH_DETECTED=RefreshCw, OB_BROKEN/RISK_ELEVATED=ShieldAlert, VOLATILITY_ALERT=Gauge, LIQUIDITY_ALERT=Droplets, etc.), formatted time (mono), title, message, optional reason (italic), optional confidence value. Dot color matches priority.
+  * Footer (sticky): Close button (ghost variant).
+  * Loading state: full-height skeleton matching the dialog layout.
+  * Error state: red icon + error message + Close button. Handles null signalId by rendering the skeleton (graceful no-op).
+
+Created `src/components/terminal/v3/signal-history-panel.tsx` (440 lines):
+  * `"use client"` named export `SignalHistoryPanel` with optional `onSelectSignal?: (signalId: string) => void` prop.
+  * Fetches `/api/signals?status=closed_win,closed_loss,closed_manual,invalidated&limit=50` on mount + every 30s (silent refresh).
+  * Header: History icon + "Signal History" + count chip (sky-themed to distinguish from the live monitor).
+  * Stats row (5 cols, hidden until data loads): Win Rate % (emerald if >=50 else red, emphasized), Total, Wins (emerald), Losses (red), Avg Confidence %.
+  * Scrollable list (`divide-y divide-white/5`) of past signals, each as a `HistoryRow` button:
+    - Top row: clickable symbol (sky hover if onSelect wired), direction badge, signalType label, outcome badge (WIN=emerald ✓, LOSS=red ✗, MANUAL=slate clock, INVALID=amber clock), relative time (closedAt or createdAt).
+    - 4-col grid: Entry → Close price (mono, per-symbol digits via INSTRUMENT_MAP), PnL % (colored, using closePnl || livePnl), Conf % / Quality score (accent for quality), Duration (computed from createdAt→closedAt using `durationLabel` helper: <1m, Xm, Xh Ym, Xd Yh).
+    - Close reason displayed below as italic text if present.
+  * Empty state: "No signal history yet. Closed signals will appear here." (History icon + centered text).
+  * Loading skeleton: 6 row placeholders matching the row layout.
+
+Notes on design choices:
+- All three files follow the established V3 conventions from `signal-panel.tsx` (ActiveSignal type, badge maps, helper functions, `tt-panel` wrapper, header pattern, body scroll pattern, mono numerics).
+- Trade Monitor deliberately differs from the existing SignalPanel by emphasizing real-time monitoring: pulsing LIVE indicator, 5s refresh, live PnL summary, animated price progress bar with current-price dot, TP-hit indicators.
+- Signal History deliberately does NOT auto-refresh as frequently (30s vs 5s) since closed signals are mostly static.
+- The `onSelectSignal` optional prop on TradeMonitor + SignalHistory panels allows the parent dashboard to open SignalDetailDialog when a trade row is clicked — clean separation of concerns without coupling.
+
+Verification:
+- `npx tsc --noEmit`: 0 errors in any of the three new files (pre-existing unrelated errors in examples/, skills/, src/app/page.tsx, src/lib/price-action/engine.ts, src/lib/signal-engine/engine.ts remain untouched).
+- `npx eslint` on all three files: exit 0, 0 warnings, 0 errors.
+
+Stage Summary:
+- Three production-ready V3 components delivered under `src/components/terminal/v3/`:
+  * `trade-monitor-panel.tsx` — real-time active trade monitor with 5s auto-refresh, pulsing LIVE indicator, total/best/worst PnL summary bar, animated price progress bar (entry→TP3 with markers + current price dot), TP-hit status badges, distance-to-TP1/SL cells, mini stats grid (Conf/Quality/Risk/RR/Session), Close Trade button (PATCH action=close), loading skeleton + empty state.
+  * `signal-detail-dialog.tsx` — full-detail modal with SVG QualityRing, trade setup grid, summary, reasons list, indicators grid, and a vertical event timeline (newest-first) with priority colors + per-type icons. Loading skeleton + error state + null-signalId handling.
+  * `signal-history-panel.tsx` — closed-signal history list with 30s auto-refresh, win-rate/wins/losses/avg-confidence stats row, per-row outcome badge + entry→close + PnL% + Conf/Quality + duration + close reason. Loading skeleton + empty state.
+- All components follow the dark glassmorphism Bloomberg-terminal design system, use shadcn Dialog/Skeleton/Button, lucide-react icons, `tt-*` color tokens, `tt-mono` numerics, sonner toasts. Ready to be mounted in the V3 dashboard by the orchestrator, with `onSelectSignal` callbacks wiring the panels to the SignalDetailDialog.

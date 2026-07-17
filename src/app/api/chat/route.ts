@@ -7,6 +7,7 @@ import { analyzeMultiTimeframe } from "@/lib/multi-timeframe/engine";
 import { computeProbabilities } from "@/lib/probability/engine";
 import { computeNewsImpact } from "@/lib/news-impact/engine";
 import { computeHeatmap } from "@/lib/heatmap/engine";
+import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -110,6 +111,36 @@ export async function POST(request: Request) {
     // skip
   }
 
+  // V3 Active signals context
+  let signalsContext = "";
+  try {
+    const activeSignals = await db.activeSignal.findMany({
+      where: { status: { in: ["active", "tp1_hit", "tp2_hit"] } },
+      orderBy: { qualityScore: "desc" },
+      take: 5,
+    });
+    if (activeSignals.length > 0) {
+      signalsContext = `\nACTIVE SIGNALS (${activeSignals.length}):\n` + activeSignals.map(s =>
+        `${s.symbol} ${s.direction.toUpperCase()} ${s.signalType} | entry=${s.entryPrice} conf=${s.confidence}% quality=${s.qualityScore}/100 | SL=${s.stopLoss} TP1=${s.takeProfit1} TP2=${s.takeProfit2} TP3=${s.takeProfit3} | status=${s.status} | reasons=${(JSON.parse(s.reasons || "[]")).slice(0, 3).join(",")}`
+      ).join("\n");
+    } else {
+      signalsContext = "\nACTIVE SIGNALS: None currently active.";
+    }
+
+    // Recent notifications
+    const recentEvents = await db.tradeEvent.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    });
+    if (recentEvents.length > 0) {
+      signalsContext += `\nRECENT EVENTS:\n` + recentEvents.map(e =>
+        `${e.type} | ${e.symbol} | ${e.title} | ${e.priority}`
+      ).join("\n");
+    }
+  } catch {
+    // skip
+  }
+
   const fullContext = `LIVE TERMINAL CONTEXT:
 ${marketOverview}
 
@@ -121,7 +152,7 @@ ${analysisDigest}
 
 SMART MONEY CONTEXT:
 ${smcLines.join("\n")}
-${mtfContext}${probContext}${newsContext}${heatmapContext}`;
+${mtfContext}${probContext}${newsContext}${heatmapContext}${signalsContext}`;
 
   const reply = await chatWithContext(messages, {
     marketOverview: fullContext,

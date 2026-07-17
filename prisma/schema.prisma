@@ -295,3 +295,103 @@ model AlertRule {
   createdAt DateTime @default(now())
 }
 
+// ============================================================
+// V3 — ACTIVE SIGNALS (live trade recommendations)
+// ============================================================
+model ActiveSignal {
+  id              String   @id @default(cuid())
+  symbol          String
+  direction       String             // long | short
+  signalType      String             // STRONG_BUY | BUY | WAIT | SELL | STRONG_SELL
+  entryPrice      Float
+  currentPrice    Float
+  stopLoss        Float
+  takeProfit1     Float
+  takeProfit2     Float
+  takeProfit3     Float
+  riskReward      Float
+  confidence      Float              // 0..100
+  qualityScore    Float              // 0..100 Trade Quality Score
+  expectedDuration String
+  expectedProbability Float
+  riskLevel       String             // low | medium | high | extreme
+  marketSession   String
+  reasons         String             // JSON array of reason strings
+  summary         String
+  indicators      String             // JSON of indicator snapshot
+  status          String   @default("active") // active | tp1_hit | tp2_hit | closed_win | closed_loss | closed_manual | invalidated
+  tp1Hit          Boolean  @default(false)
+  tp2Hit          Boolean  @default(false)
+  tp3Hit          Boolean  @default(false)
+  slHit           Boolean  @default(false)
+  closedAt        DateTime?
+  closeReason     String?
+  closePnl        Float?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([symbol])
+}
+
+// ============================================================
+// V3 — SIGNAL HISTORY (all signals ever generated)
+// ============================================================
+model SignalHistory {
+  id              String   @id @default(cuid())
+  symbol          String
+  direction       String
+  signalType      String
+  entryPrice      Float
+  confidence      Float
+  qualityScore    Float
+  reasons         String
+  summary         String
+  outcome         String?             // win | loss | breakeven | invalidated | expired
+  closePrice      Float?
+  pnlPct          Float?
+  createdAt       DateTime @default(now())
+
+  @@index([symbol, createdAt])
+  @@index([createdAt])
+}
+
+// ============================================================
+// V3 — TRADE MONITOR EVENTS (notifications for active signals)
+// ============================================================
+model TradeEvent {
+  id              String   @id @default(cuid())
+  signalId        String?
+  symbol          String
+  type            String             // NEW_SIGNAL | HIGH_IMPACT_NEWS | CLOSE_POSITION | MOVE_STOP_LOSS | TAKE_PROFIT_HIT | MARKET_STRUCTURE_CHANGED | VOLATILITY_ALERT | LIQUIDITY_ALERT | CONFIDENCE_CHANGED | NEWS_CHANGED | BOS_DETECTED | CHOCH_DETECTED | OB_BROKEN | TREND_CHANGE | RISK_ELEVATED
+  title           String
+  message         String
+  reason          String
+  confidence      Float?
+  priority        String   @default("medium") // low | medium | high | critical
+  read            Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([signalId, createdAt])
+  @@index([read, createdAt])
+  @@index([symbol, createdAt])
+}
+
+// ============================================================
+// V3 — SCAN RESULTS (market scanner snapshots)
+// ============================================================
+model ScanResult {
+  id              String   @id @default(cuid())
+  symbol          String
+  confidence      Float
+  qualityScore    Float
+  signalType      String
+  direction       String
+  rank            Int
+  reasons         String
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([rank])
+}
+

@@ -237,11 +237,27 @@ export async function analyzeAll(): Promise<PairAnalysis[]> {
   const { quotes, session } = await getAllQuotes();
   const results: PairAnalysis[] = [];
   for (const q of quotes) {
-    const { candles } = await getCandles(q.symbol, TF, 250);
+    const { candles } = await getCandles(q.symbol, TF, 150);
     const a = analyzeFromData(q.symbol, candles, q, session);
-    if (a) results.push(a);
+    if (a) {
+      // Strip candles to save memory — they're not needed for the analysis summary
+      const { candles: _c, ...light } = a;
+      results.push(light as PairAnalysis);
+    }
   }
   return results;
+}
+
+// Shared cached analysis — used by /api/analysis and /api/scanner to avoid duplicate computation
+import { getOrCompute } from "@/lib/cache";
+
+export async function getAllAnalysisCached(): Promise<PairAnalysis[]> {
+  return getOrCompute("analysis:full:all", 10000, () => analyzeAll());
+}
+
+export async function getPairAnalysisCached(symbol: string): Promise<PairAnalysis | null> {
+  const all = await getAllAnalysisCached();
+  return all.find((a) => a.symbol === symbol.toUpperCase()) || null;
 }
 
 export function buildAnalysisSummary(a: PairAnalysis): AnalysisSummary {

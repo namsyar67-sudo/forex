@@ -38,7 +38,7 @@ export function PositionsPanel({ onRefresh }: PositionsPanelProps) {
 
   useEffect(() => {
     fetchPositions();
-    const id = setInterval(fetchPositions, 5000);
+    const id = setInterval(fetchPositions, 15000);
     return () => clearInterval(id);
   }, [fetchPositions]);
 

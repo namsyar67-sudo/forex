@@ -227,7 +227,7 @@ function analyzeFromData(
 }
 
 export async function analyzePair(symbol: string): Promise<PairAnalysis | null> {
-  const { candles, quote } = await getCandles(symbol, TF, 250);
+  const { candles, quote } = await getCandles(symbol, TF, 150);
   if (!quote || candles.length < 50) return null;
   const session = await getSession();
   return analyzeFromData(symbol, candles, quote, session);

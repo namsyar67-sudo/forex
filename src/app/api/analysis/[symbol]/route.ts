@@ -14,5 +14,7 @@ export async function GET(
     return NextResponse.json({ error: "Symbol not found or insufficient data" }, { status: 404 });
   }
   const summary = buildAnalysisSummary(analysis);
-  return NextResponse.json({ analysis, summary, time: Date.now() });
+  // Strip candle array to keep payload light
+  const { candles, ...lightAnalysis } = analysis;
+  return NextResponse.json({ analysis: lightAnalysis, summary, time: Date.now() });
 }

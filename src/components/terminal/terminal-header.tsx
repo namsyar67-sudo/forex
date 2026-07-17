@@ -17,8 +17,12 @@ interface TerminalHeaderProps {
 const VIEWS = [
   { id: "terminal", label: "Terminal" },
   { id: "analysis", label: "Analysis" },
+  { id: "smartmoney", label: "Smart Money" },
+  { id: "mft", label: "MTF" },
   { id: "positions", label: "Positions" },
+  { id: "journal", label: "Journal" },
   { id: "news", label: "News & Calendar" },
+  { id: "market", label: "Market Depth" },
 ];
 
 export function TerminalHeader({

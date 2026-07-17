@@ -1,11 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { CandleChart } from "@/components/charts/candle-chart";
+import { SmartMoneyOverlays } from "@/components/charts/overlays/smart-money-overlays";
 import type { Quote, PairAnalysis, Candle } from "@/lib/types";
+import type { SmartMoneyAnalysis } from "@/lib/smart-money/engine";
 import { formatPrice, formatChange, formatNumber } from "@/lib/format";
 import { ema, bollinger } from "@/lib/indicators/client-indicators";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Layers } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface ChartPanelProps {
   symbol: string;
@@ -22,6 +26,19 @@ export function ChartPanel({ symbol, quote, analysis, name, category }: ChartPan
   const [tf, setTf] = useState<TF>("h1");
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(false);
+  const [smc, setSmc] = useState<SmartMoneyAnalysis | null>(null);
+  const [smcEnabled, setSmcEnabled] = useState(false);
+  const [layers, setLayers] = useState({
+    orderBlocks: true,
+    fvg: true,
+    liquidity: true,
+    breaks: true,
+    equalLevels: false,
+    premiumDiscount: true,
+    swings: false,
+  });
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [chartWidth, setChartWidth] = useState(800);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,6 +59,43 @@ export function ChartPanel({ symbol, quote, analysis, name, category }: ChartPan
       cancelled = true;
     };
   }, [symbol, tf]);
+
+  // Load SMC analysis when enabled
+  useEffect(() => {
+    if (!smcEnabled) {
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/smart-money/${symbol}?tf=${tf}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setSmc(data.analysis || null);
+      } catch {
+        // ignore
+      }
+    };
+    load();
+    const t = setInterval(load, 20000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [symbol, tf, smcEnabled]);
+
+  // Effective SMC: null when disabled (derived, avoids setState-in-effect)
+  const effectiveSmc = smcEnabled ? smc : null;
+
+  // Track chart container width for overlays
+  useEffect(() => {
+    const el = chartContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) setChartWidth(e.contentRect.width);
+    });
+    ro.observe(el);
+    setChartWidth(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
 
   const closes = candles.map((c) => c.close);
   const ema20Arr = ema(closes, 20);
@@ -113,22 +167,71 @@ export function ChartPanel({ symbol, quote, analysis, name, category }: ChartPan
       )}
 
       {/* Chart */}
-      <div className="flex-1 min-h-0 p-2">
+      <div className="flex-1 min-h-0 p-2 relative" ref={chartContainerRef}>
         {loading ? (
           <div className="h-full flex items-center justify-center text-sm text-slate-500">
             Loading {symbol} {tf}…
           </div>
         ) : (
-          <CandleChart
-            candles={candles}
-            digits={quote?.digits || 5}
-            height={380}
-            ema20={ema20Arr}
-            ema50={ema50Arr}
-            bbUpper={bb.upper}
-            bbLower={bb.lower}
-          />
+          <div className="relative h-full">
+            <CandleChart
+              candles={candles}
+              digits={quote?.digits || 5}
+              height={380}
+              ema20={ema20Arr}
+              ema50={ema50Arr}
+              bbUpper={bb.upper}
+              bbLower={bb.lower}
+            />
+            {smcEnabled && effectiveSmc && (
+              <div className="absolute inset-0 pointer-events-none">
+                <SmartMoneyOverlays
+                  candles={candles}
+                  analysis={effectiveSmc}
+                  digits={quote?.digits || 5}
+                  showVolume={true}
+                  height={380}
+                  width={chartWidth - 16}
+                  layers={layers}
+                />
+              </div>
+            )}
+          </div>
         )}
+        {/* Smart Money layers toggle */}
+        <div className="absolute top-3 right-3 flex items-center gap-1">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-7 px-2 text-[10px] gap-1 ${smcEnabled ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" : "bg-white/5 text-slate-400 border border-white/10"}`}
+                onClick={() => setSmcEnabled(!smcEnabled)}
+              >
+                <Layers className="w-3 h-3" />
+                SMC
+              </Button>
+            </PopoverTrigger>
+            {smcEnabled && (
+              <PopoverContent className="w-52 tt-glass-strong border-white/10 p-2" align="end">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Smart Money Layers</div>
+                <div className="space-y-1">
+                  {(Object.keys(layers) as (keyof typeof layers)[]).map((key) => (
+                    <label key={key} className="flex items-center gap-2 cursor-pointer text-xs text-slate-300 hover:text-white">
+                      <input
+                        type="checkbox"
+                        checked={layers[key]}
+                        onChange={(e) => setLayers({ ...layers, [key]: e.target.checked })}
+                        className="accent-emerald-500"
+                      />
+                      <span className="capitalize">{key.replace(/([A-Z])/g, " $1").trim()}</span>
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            )}
+          </Popover>
+        </div>
       </div>
     </div>
   );

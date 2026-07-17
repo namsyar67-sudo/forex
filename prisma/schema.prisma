@@ -176,3 +176,122 @@ model Setting {
   id    String @id
   value String
 }
+
+// ============================================================
+// DECISION TIMELINE — evolution of decisions per symbol
+// ============================================================
+model DecisionTimelineEntry {
+  id        String   @id @default(cuid())
+  symbol    String
+  action    String             // buy | sell | hold | wait
+  confidence Float
+  reason    String
+  signalScore Float
+  trend     String
+  context   String             // JSON snapshot of key indicators
+  createdAt DateTime @default(now())
+
+  @@index([symbol, createdAt])
+}
+
+// ============================================================
+// TRADE JOURNAL — closed trades for stats
+// ============================================================
+model TradeJournalEntry {
+  id            String   @id @default(cuid())
+  symbol        String
+  side          String             // long | short
+  entryPrice    Float
+  exitPrice     Float
+  size          Float
+  pnl           Float
+  pnlPips       Float
+  confidence    Float
+  rationale     String?
+  openedAt      DateTime
+  closedAt      DateTime
+  holdingHours  Float
+  rr            Float    @default(0)  // risk:reward realized
+  win           Boolean  @default(false)
+  tags          String?             // comma-separated (e.g. "smart-money,bos,mtf")
+  createdAt     DateTime @default(now())
+
+  @@index([symbol, closedAt])
+  @@index([win])
+}
+
+// ============================================================
+// AI MEMORY — prediction vs result tracking
+// ============================================================
+model AIMemoryEntry {
+  id            String   @id @default(cuid())
+  symbol        String
+  predictedAction String           // buy | sell | hold | wait
+  predictedConfidence Float
+  predictedDirection String        // bullish | bearish | neutral
+  actualOutcome String             // up | down | flat (price moved)
+  priceAtPrediction Float
+  priceAtOutcome Float
+  correct       Boolean  @default(false)
+  accuracyScore Float    @default(0) // 0..100
+  analysis      String?             // JSON of indicators at prediction
+  learnedFactors String?            // AI-generated success/failure reasons
+  createdAt     DateTime @default(now())
+  resolvedAt    DateTime?
+
+  @@index([symbol, createdAt])
+  @@index([correct])
+}
+
+// ============================================================
+// REANALYSIS SNAPSHOTS — before/after comparison
+// ============================================================
+model ReanalysisSnapshot {
+  id            String   @id @default(cuid())
+  symbol        String
+  phase         String             // before | after
+  trend         String
+  confidence    Float
+  signalScore   Float
+  riskScore     Float
+  rsi           Float
+  atrPct        Float
+  sentiment     String
+  liquidity     String
+  orderBlocks   Int      @default(0)
+  fvgs          Int      @default(0)
+  bosCount      Int      @default(0)
+  newsImpact    Float    @default(0)
+  snapshot      String             // full JSON
+  createdAt     DateTime @default(now())
+
+  @@index([symbol, createdAt])
+}
+
+// ============================================================
+// SMART MONEY SNAPSHOTS — cached SMC analysis per symbol/tf
+// ============================================================
+model SmartMoneySnapshot {
+  id        String   @id @default(cuid())
+  symbol    String
+  timeframe String
+  data      String             // JSON of all SMC structures
+  createdAt DateTime @default(now())
+
+  @@unique([symbol, timeframe])
+  @@index([symbol])
+}
+
+// ============================================================
+// ALERT RULES — advanced alert configuration
+// ============================================================
+model AlertRule {
+  id        String   @id @default(cuid())
+  type      String             // bos | choch | fvg | order_block | level_proximity | news | risk | confidence | trend
+  symbol    String?
+  enabled   Boolean  @default(true)
+  params    String             // JSON of rule params
+  lastFired DateTime?
+  createdAt DateTime @default(now())
+}
+

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useLiveQuotes } from "@/hooks/use-live-quotes";
 import { useTerminalStore } from "@/lib/store";
 import { getAllInstruments } from "@/lib/market/client";
@@ -22,6 +22,29 @@ import { CorrelationPanel } from "@/components/terminal/correlation-panel";
 import { BriefingPanel } from "@/components/terminal/briefing-panel";
 import { SettingsDialog } from "@/components/terminal/settings-dialog";
 import { OpenPositionDialog } from "@/components/terminal/open-position-dialog";
+import { RefreshCw } from "lucide-react";
+
+// V2 components — lazy-loaded for code splitting (reduces initial bundle & memory)
+const SmartMoneyPanel = lazy(() => import("@/components/terminal/v2/smart-money-panel"));
+const PriceActionPanel = lazy(() => import("@/components/terminal/v2/price-action-panel"));
+const MTFPanel = lazy(() => import("@/components/terminal/v2/mtf-panel"));
+const ProbabilityWheel = lazy(() => import("@/components/terminal/v2/probability-wheel"));
+const ScenariosPanel = lazy(() => import("@/components/terminal/v2/scenarios-panel"));
+const HeatmapPanel = lazy(() => import("@/components/terminal/v2/heatmap-panel"));
+const SessionAnalysisPanel = lazy(() => import("@/components/terminal/v2/session-analysis-panel"));
+const CorrelationGraphPanel = lazy(() => import("@/components/terminal/v2/correlation-graph-panel"));
+const DecisionTimelinePanel = lazy(() => import("@/components/terminal/v2/decision-timeline-panel"));
+const TradeJournalPanel = lazy(() => import("@/components/terminal/v2/trade-journal-panel"));
+const AIMemoryPanel = lazy(() => import("@/components/terminal/v2/ai-memory-panel"));
+const ReanalyzeDialog = lazy(() => import("@/components/terminal/v2/reanalyze-dialog"));
+
+function PanelFallback({ label }: { label: string }) {
+  return (
+    <div className="tt-panel rounded-xl h-full flex items-center justify-center text-xs text-slate-500">
+      Loading {label}…
+    </div>
+  );
+}
 
 export default function TerminalPage() {
   const { quotes, session, connected } = useLiveQuotes();
@@ -38,6 +61,8 @@ export default function TerminalPage() {
     data: any;
   }>({ open: false, data: null });
   const [positionsVersion, setPositionsVersion] = useState(0);
+  const [reanalyzeOpen, setReanalyzeOpen] = useState(false);
+  const [probData, setProbData] = useState<{ buy: number; sell: number; wait: number } | null>(null);
 
   // Load instruments once (client-side fetch via API)
   useEffect(() => {
@@ -47,7 +72,7 @@ export default function TerminalPage() {
       .catch(() => {});
   }, []);
 
-  // Load analysis periodically
+  // Load analysis periodically (deferred 2s to reduce initial load burst)
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -70,10 +95,11 @@ export default function TerminalPage() {
         // ignore
       }
     };
-    load();
-    const t = setInterval(load, 8000);
+    const initialTimer = setTimeout(load, 2000);
+    const t = setInterval(load, 15000);
     return () => {
       cancelled = true;
+      clearTimeout(initialTimer);
       clearInterval(t);
     };
   }, []);
@@ -112,6 +138,27 @@ export default function TerminalPage() {
   };
 
   const digits = selectedQuote?.digits || selectedInstrument?.digits || 5;
+
+  // Load probability for the selected symbol (V2) — only when MTF view is active
+  useEffect(() => {
+    if (activeView !== "mft") return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/probability/${selectedSymbol}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const p = data.probability;
+        setProbData({ buy: p.buy, sell: p.sell, wait: p.wait });
+      } catch {
+        // ignore
+      }
+    };
+    load();
+    const t = setInterval(load, 15000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [selectedSymbol, activeView]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#07090d] tt-grid-bg">
@@ -211,12 +258,90 @@ export default function TerminalPage() {
             <CalendarPanel />
           </div>
         )}
+
+        {activeView === "smartmoney" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
+            <div className="lg:col-span-4 min-h-0">
+              <Suspense fallback={<PanelFallback label="Smart Money" />}>
+                <SmartMoneyPanel symbol={selectedSymbol} />
+              </Suspense>
+            </div>
+            <div className="lg:col-span-4 min-h-0">
+              <Suspense fallback={<PanelFallback label="Price Action" />}>
+                <PriceActionPanel symbol={selectedSymbol} />
+              </Suspense>
+            </div>
+            <div className="lg:col-span-4 min-h-0 flex flex-col gap-3">
+              <div className="min-h-0">
+                <Suspense fallback={<PanelFallback label="Scenarios" />}>
+                  <ScenariosPanel symbol={selectedSymbol} />
+                </Suspense>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeView === "mft" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
+            <div className="lg:col-span-5 min-h-0">
+              <Suspense fallback={<PanelFallback label="MTF" />}>
+                <MTFPanel symbol={selectedSymbol} />
+              </Suspense>
+            </div>
+            <div className="lg:col-span-3 min-h-0 flex flex-col gap-3">
+              <div className="flex items-center justify-center tt-panel rounded-xl p-4">
+                {probData && <ProbabilityWheel buy={probData.buy} sell={probData.sell} wait={probData.wait} size={180} />}
+              </div>
+              <div className="min-h-0 flex-1">
+                <Suspense fallback={<PanelFallback label="Timeline" />}>
+                  <DecisionTimelinePanel symbol={selectedSymbol} />
+                </Suspense>
+              </div>
+            </div>
+            <div className="lg:col-span-4 min-h-0">
+              <Suspense fallback={<PanelFallback label="AI Memory" />}>
+                <AIMemoryPanel symbol={selectedSymbol} />
+              </Suspense>
+            </div>
+          </div>
+        )}
+
+        {activeView === "journal" && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
+            <Suspense fallback={<PanelFallback label="Journal" />}>
+              <TradeJournalPanel />
+            </Suspense>
+            <Suspense fallback={<PanelFallback label="Timeline" />}>
+              <DecisionTimelinePanel symbol={selectedSymbol} />
+            </Suspense>
+          </div>
+        )}
+
+        {activeView === "market" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
+            <div className="lg:col-span-5 min-h-0">
+              <Suspense fallback={<PanelFallback label="Heatmap" />}>
+                <HeatmapPanel />
+              </Suspense>
+            </div>
+            <div className="lg:col-span-4 min-h-0">
+              <Suspense fallback={<PanelFallback label="Correlation Graph" />}>
+                <CorrelationGraphPanel />
+              </Suspense>
+            </div>
+            <div className="lg:col-span-3 min-h-0">
+              <Suspense fallback={<PanelFallback label="Sessions" />}>
+                <SessionAnalysisPanel />
+              </Suspense>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Footer */}
       <footer className="mt-auto border-t border-white/5 bg-[#0a0d12] px-4 py-2 flex items-center justify-between text-[10px] text-slate-500">
         <div className="flex items-center gap-4">
-          <span className="tt-mono">AI Trading Terminal v1.0</span>
+          <span className="tt-mono">AI Trading Terminal v2.0</span>
           <span className="hidden sm:inline">
             Engine:{" "}
             <span className={connected ? "tt-text-up" : "text-amber-400"}>
@@ -240,8 +365,21 @@ export default function TerminalPage() {
         </div>
       </footer>
 
+      {/* ReAnalyze button (floating, bottom-left of main area) */}
+      <button
+        onClick={() => setReanalyzeOpen(true)}
+        className="fixed bottom-12 right-4 z-30 flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium shadow-lg shadow-emerald-600/30 transition-colors"
+        title="Re-analyze and compare before/after"
+      >
+        <RefreshCw className="w-3.5 h-3.5" />
+        ReAnalyze
+      </button>
+
       {/* Dialogs */}
       <AlertsPanel open={alertsOpen} onOpenChange={setAlertsOpen} />
+      <Suspense fallback={null}>
+        <ReanalyzeDialog open={reanalyzeOpen} onOpenChange={setReanalyzeOpen} symbol={selectedSymbol} />
+      </Suspense>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       <OpenPositionDialog
         open={positionDialog.open}

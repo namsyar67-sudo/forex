@@ -38,20 +38,23 @@ export function TerminalHeader({
   activeView,
   onViewChange,
 }: TerminalHeaderProps) {
-  const [now, setNow] = useState(new Date());
+  const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
+    setNow(new Date());
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  const utcTime = now.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    timeZone: "UTC",
-    hour12: false,
-  });
+  const utcTime = now
+    ? now.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        timeZone: "UTC",
+        hour12: false,
+      })
+    : "--:--:--";
 
   return (
     <header className="sticky top-0 z-40 tt-glass-strong border-b border-white/10">

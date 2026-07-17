@@ -716,3 +716,134 @@ Stage Summary:
 - Full reasoning explains why each agent recommended what it did.
 - Architecture is extensible — new agents can be added by implementing the Agent interface.
 - All V1/V2/V3 functionality preserved.
+
+---
+Task ID: V5-1
+Agent: Sub-agent (general-purpose)
+Task: Build V5 News Intelligence components — main dashboard, sources panel, and economic calendar/scheduled alerts panel
+
+Work Log:
+- Read worklog.md to understand prior work (V1/V2/V3/V4 evolution, design tokens, panel conventions, news intelligence lib already built).
+- Inspected existing API routes to mirror exact response shapes:
+  * `/api/news-intelligence/feed` (GET/POST) — returns `{ report, decisionRule, timestamp }`. Report includes collectedCount/verifiedCount/verificationRate/breakingCount/sourceCount/sentiment/marketImpact/tradeImpact/aiSummary/scheduledAlerts/verifiedItems(10)/breakingNews. decisionRule = `{ shouldWait, reason }`.
+  * `/api/news-intelligence/sources` — returns `{ sources, totalCount, enabledCount, byCategory }`. Source shape `{ id, name, category, reliability(0..1), speed(0..1), url, enabled, region }`.
+  * `/api/news-intelligence/scheduled` — returns `{ events, upcomingHigh, scheduledAlerts }`. Event shape includes `minutesUntil` and `isUpcoming` computed by the backend.
+- Inspected supporting libs: `src/lib/news-intelligence/{sources,agents,orchestrator}.ts` for full type contracts (NewsSentiment, NewsMarketImpact, TradeImpactResult, NewsAISummary, ScheduledAlert, CalendarEventExtended). `src/lib/format.ts` for `relativeTime`, `formatTime`, `impactColor`. `src/app/globals.css` for `tt-panel`, `tt-scroll`, `tt-mono`, `tt-text-up/down/dim/accent`, `tt-pulse-dot` tokens. Existing `news-feed.tsx` and `calendar-panel.tsx` for panel conventions and the CURRENCY_FLAG map.
+- Verified UI primitives: `Button` (variants default/ghost/outline, sizes sm/icon), `Skeleton`, `Badge` (not used in the end — colored spans kept inline for tighter Bloomberg-terminal styling), `Progress` (not used — custom bars for finer control over color tiers).
+- Created `/home/z/my-project/src/components/terminal/v5/news-intelligence-panel.tsx` (~560 lines):
+  * `"use client"` named export `NewsIntelligencePanel` (no props).
+  * Fetches `/api/news-intelligence/feed` (GET) every 30s (silent refresh after first load). "Run Analysis" button POSTs to the same endpoint and replaces state.
+  * Header: pulsing `Newspaper` icon (tt-pulse-dot when idle, animate-pulse while busy) + "News Intelligence" + source count badge + relative "updated X ago" + amber "Run Analysis" button (Loader2 spinner while running).
+  * **Decision Rule Banner**: prominent colored banner. shouldWait=true → red bg/border + AlertTriangle + "WAIT" + reason text. shouldWait=false → emerald bg/border + CheckCircle + "CLEAR" + "Conditions clear — news flow stable".
+  * **AI Summary Card**: violet-tinted card with Sparkles icon + "Action Required" badge if actionRequired. Bold headline, plain language summary, bullet-list key takeaways (▸), and an "Implications" footer section.
+  * **Stats Row**: 4 stat tiles in a `grid-cols-2 sm:grid-cols-4` — Collected, Verified (with % and accent color tiered by rate), Breaking (red if > 0), Sources. Each tile has icon + label + mono number.
+  * **Sentiment Card**: Radio icon + direction badge (bullish=emerald, bearish=red, neutral=slate with directional TrendingUp/Down/Clock icon) + confidence % + currency impact chips (positive/negative/neutral colored, "USD · 65" format) + italic reasoning.
+  * **Market Impact Card**: Globe icon + overall impact badge (low/medium/high/extreme) + confidence % + 2-col grid for Duration + Categories. Symbol impact bars: mono symbol + direction icon + colored strength bar (emerald/red/slate) + numeric strength.
+  * **Trade Impact Card**: Shield icon + "Critical" badge if hasCriticalImpact. If no affected trades: italic "No open trades affected by current news." Otherwise each trade is a sub-card: symbol (mono) + direction + impact level badge (low/medium/high/critical) + recommendation badge (hold/reduce risk/close/move to breakeven) + reasoning text. Red border + bg when hasCriticalImpact.
+  * **Breaking News Section**: red-tinted card with Flame icon + count. Each item has a red left border + animated pulsing red dot (ping + solid), bold title, source · verification score · time ago · symbol chips.
+  * **Verified News List**: rounded card with Newspaper icon + count. Each item: title (bold) + "UNVERIFIED" badge (amber) if not verified, dimmed opacity for unverified; 2-line clamped summary; verification score bar (emerald/amber/orange/red tiered); footer with source name, cross-source count badge ("3 sources" in sky), related sources chips (up to 2), symbol chips (up to 3), time ago + formatTime.
+  * Loading skeleton: decision banner + AI summary + 4 stat tiles + sentiment/impact skeletons + 4 verified-item skeletons.
+  * Error state: AlertTriangle + message + Retry button.
+- Created `/home/z/my-project/src/components/terminal/v5/news-sources-panel.tsx` (~290 lines):
+  * `"use client"` named export `NewsSourcesPanel` (no props). Static config — fetches once on mount, no auto-refresh. "Reload" button for manual refetch.
+  * Header: Shield icon + "News Sources" + "{enabled}/{total} enabled" + Reload button.
+  * **Stats row**: 5-col grid showing counts per category (wire/financial/forex/crypto/general) with the category icon + count + label.
+  * **Grouped grid**: iterates CATEGORY_ORDER (wire, financial, forex, crypto, general) with section header (icon + label + count) and a `grid-cols-1 sm:grid-cols-2` of SourceCards.
+  * **SourceCard**: enabled indicator dot (green if enabled, slate if disabled, dimmed opacity when disabled). Bold source name. Category badge (colored per spec: wire=amber, financial=sky, forex=emerald, crypto=violet, general=slate). Reliability bar (colored: ≥90% emerald, ≥80% amber, else slate) + mono percent. Speed bar (sky/cyan/slate tiers) + mono percent. Region badge. "Disabled" badge if not enabled.
+  * Loading skeleton (5 stat tiles + 3 grouped sections with 4 cards each) + error state + empty state.
+- Created `/home/z/my-project/src/components/terminal/v5/scheduled-news-panel.tsx` (~360 lines):
+  * `"use client"` named export `ScheduledNewsPanel` (no props). Fetches `/api/news-intelligence/scheduled` every 30s (silent refresh). A separate 1-second interval ticks state to re-render live countdowns smoothly.
+  * Header: CalendarClock icon (tt-pulse-dot when idle) + "Economic Calendar & Alerts" + total event count + Refresh button.
+  * **Upcoming High Impact** section (prominent): sorts upcomingHigh by minutesUntil ascending. Each `UpcomingEventRow` shows: a countdown block with "Xm" or "Xh Ym" big mono number + a live MM:SS countdown when < 60m remaining; urgency color tiers (<5m = red + animate-pulse, <15m = amber, else slate). Event title (bold) + impact badge. Currency flag emoji + currency code · formatTime · Forecast/Previous mono row. Affected symbols chips (up to 6 + overflow count).
+  * Empty state: centered "No upcoming high-impact events." with a Clock icon.
+  * **All Events table**: CSS grid `grid-cols-[60px_1fr_60px_56px_60px_60px_60px]` (Time/Event/Ccy/Imp/Fcst/Prev/Actual) with uppercase tracking-wider header. Rows hover-highlighted. Actual value colored green/red if it surprises forecast (parse float, compare), else slate. Impact badge uses `impactColor()`.
+  * **Pending Alerts** section (shown only if any): renders up to 12 scheduled alert chips with minutesBefore + truncated event title, red if minutesBefore ≤ 5, amber otherwise, slate + checkmark if fired.
+  * Loading skeleton (3 upcoming rows + 1 all-events block) + error state + empty state.
+- Design system adherence:
+  * All three files use the `tt-panel rounded-xl flex flex-col h-full overflow-hidden` wrapper, `flex items-center justify-between p-3 border-b border-white/5` header, `flex-1 overflow-y-auto tt-scroll min-h-0` body.
+  * Text sizes: titles `text-sm font-semibold`, labels `text-[10px] uppercase tracking-wider text-slate-500`, body `text-xs`.
+  * Mono numerics via `tt-mono`. Color tokens `tt-text-up/down/dim/accent` used throughout.
+  * Dark theme bg `#07090d` respected via existing globals.css (no inline overrides).
+  * Lucide-react icons used: Newspaper, AlertTriangle, CheckCircle, Clock, Zap, Globe, Shield, TrendingUp, TrendingDown, Flame, Radio, Sparkles, CalendarClock, Loader2, RefreshCw.
+- Imports verified: `Button`, `Skeleton` from `@/components/ui/`; format helpers `relativeTime`, `formatTime`, `impactColor` from `@/lib/format`; icons from `lucide-react`. No external types imported — all response shapes declared locally to avoid coupling to backend internals.
+- Type-check: `npx tsc --noEmit` → 0 errors in `src/components/terminal/v5/` (pre-existing unrelated errors elsewhere untouched).
+- Lint: `npx eslint src/components/terminal/v5/` → exit 0, 0 warnings, 0 errors.
+- No existing files modified. Three new files created under `src/components/terminal/v5/`.
+
+Stage Summary:
+- V5-1 News Intelligence components delivered:
+  * `news-intelligence-panel.tsx` — main news intelligence dashboard. Auto-refreshes every 30s. "Run Analysis" button POSTs to recompute. Renders Decision Rule banner (WAIT/CLEAR), AI Summary card (headline + plain summary + key takeaways + implications + action-required badge), 4-tile stats row (Collected / Verified+rate / Breaking / Sources), Sentiment card (direction badge + confidence + currency impact chips + reasoning), Market Impact card (overall impact badge + duration + categories + per-symbol direction & strength bars), Trade Impact card (per-trade impact/recommendation badges + critical border when hasCriticalImpact), Breaking News section (red border + pulsing dot + verification score), and Verified News list (score bar + cross-source badge + related sources chips + UNVERIFIED dimming).
+  * `news-sources-panel.tsx` — static config panel. 5-category stats row + grouped grid of SourceCards (reliability/speed bars, category/region badges, enabled indicator).
+  * `scheduled-news-panel.tsx` — economic calendar + alerts panel. 30s auto-refresh + 1s tick for live countdowns. Prominent Upcoming High Impact section with urgency-colored countdowns (red pulsing <5m, amber <15m, slate otherwise) + MM:SS live timer, all-events grid table with surprise-colored Actual column, and a pending-alerts chip strip.
+- All three components follow the dark glassmorphism Bloomberg-terminal design system, use shadcn Button/Skeleton, lucide-react icons, `tt-*` color tokens, `tt-mono` numerics. Loading skeletons + error-retry states everywhere. Ready to be mounted into a new V5 dashboard view.
+- Next actions for orchestrator: add a "News Intel" (or V5) dashboard view and mount these three panels (suggested layout: news-intelligence-panel as the primary 2/3-width column, news-sources-panel + scheduled-news-panel as the 1/3-width sidebar, or a 3-column layout). Wire any `onSelectSymbol` callbacks if cross-panel symbol filtering is desired.
+
+---
+Task ID: V5-FINAL
+Agent: Orchestrator
+Task: Multi-Agent News Intelligence System — integration and verification
+
+Work Log:
+- Built configurable news sources (src/lib/news-intelligence/sources.ts):
+  * 22 trusted sources across 5 categories (wire, financial, forex, crypto, general)
+  * Each source has reliability (0-1) and speed (0-1) scores
+  * Sources can be added/removed by editing the config file
+  * Sources: Reuters, Bloomberg, AP, WSJ, FT, CNBC, MarketWatch, Investing.com, FXStreet, DailyFX, Forex Live, CoinDesk, Cointelegraph, etc.
+- Built 8 specialized news agents (src/lib/news-intelligence/agents.ts):
+  1. News Collection Agent — collects from multiple sources in parallel
+  2. News Verification Agent — cross-checks across sources, computes Reliability Score, deduplicates, links related items
+  3. Economic Calendar Agent — processes events with affected symbols, minutes until release
+  4. Breaking News Agent — detects breaking news (verified + recent + high impact), doesn't wait for update cycles
+  5. Market Impact Agent — analyzes impact on Forex, Gold, Silver, Crypto, Indices, Oil, Stocks
+  6. Sentiment Agent — bullish/bearish/neutral with confidence and per-currency impact
+  7. Trade Impact Agent — compares news against all open trades, sends alerts if affected
+  8. AI Summary Agent — summarizes all news in plain language with key takeaways
+- Built news scheduler (generateScheduledAlerts):
+  * Alerts before high-impact events at 30, 15, 5, and 1 minute(s)
+  * Fires TradeEvent alerts with priority based on proximity
+- Built orchestrator (src/lib/news-intelligence/orchestrator.ts):
+  * Runs all 8 agents in parallel
+  * Produces unified NewsIntelligenceReport
+  * Implements CRITICAL DECISION RULE: shouldWaitForNews()
+    - WAIT if no verified news
+    - WAIT if verification rate < 30%
+    - WAIT if breaking news detected
+    - WAIT if high-impact event within 5 minutes
+    - WAIT if critical trade impact
+    - WAIT if sentiment confidence < 40%
+  * Auto-fires trade impact alerts and scheduled calendar alerts
+- Built 5 API routes:
+  * GET/POST /api/news-intelligence/feed — full intelligence report
+  * POST /api/news-intelligence/breaking — breaking news check
+  * GET /api/news-intelligence/scheduled — calendar + scheduled alerts
+  * GET /api/news-intelligence/sources — all configured sources
+  * GET /api/news-intelligence/history — news-related trade events
+- Built 3 V5 UI components (via subagent):
+  * news-intelligence-panel.tsx — main dashboard with decision banner, AI summary, sentiment, market impact, trade impact, breaking news, verified news list
+  * news-sources-panel.tsx — all 22 sources with reliability/speed bars, grouped by category
+  * scheduled-news-panel.tsx — economic calendar with countdown timers and scheduled alerts
+- Added "News Intel" view to dashboard navigation
+- Integrated V5 view into page.tsx with lazy loading (3-column layout)
+- Fixed hydration error in terminal-header (UTC clock)
+- Lint clean (0 errors, 0 warnings)
+
+Verification Results:
+- News Intelligence API: 10 items collected, 22 sources, shouldWait=True (correct — no verified news) ✓
+- Decision Rule: properly returns WAIT when data is incomplete or conflicting ✓
+- Sources API: 22 sources, 5 categories, all enabled ✓
+- Scheduled API: 15 events, 8 upcoming high-impact ✓
+- Browser: News Intel view renders all 3 panels without errors ✓
+- No console errors ✓
+
+Stage Summary:
+- Multi-Agent News Intelligence System complete.
+- 8 specialized agents + orchestrator + decision rule engine.
+- CRITICAL PRINCIPLE enforced: no recommendation based on single news/source.
+  If data conflicts or is incomplete → WAIT with explanation.
+- 22 configurable news sources (add/remove via config file).
+- News deduplication, cross-source verification, reliability scoring.
+- Breaking news detection (real-time, no waiting for update cycle).
+- Economic calendar with scheduled alerts (30/15/5/1 minutes before).
+- Trade impact monitoring (compares news against open positions).
+- AI summary in plain language.
+- All V1/V2/V3/V4 functionality preserved.

@@ -50,6 +50,11 @@ const SignalDetailDialog = lazy(() => import("@/components/terminal/v3/signal-de
 const MultiAgentPanel = lazy(() => import("@/components/terminal/v4/multi-agent-panel"));
 const AgentConsensusPanel = lazy(() => import("@/components/terminal/v4/agent-consensus-panel"));
 
+// V5 components — News Intelligence
+const NewsIntelligencePanel = lazy(() => import("@/components/terminal/v5/news-intelligence-panel"));
+const NewsSourcesPanel = lazy(() => import("@/components/terminal/v5/news-sources-panel"));
+const ScheduledNewsPanel = lazy(() => import("@/components/terminal/v5/scheduled-news-panel"));
+
 function PanelFallback({ label }: { label: string }) {
   return (
     <div className="tt-panel rounded-xl h-full flex items-center justify-center text-xs text-slate-500">
@@ -289,6 +294,26 @@ export default function TerminalPage() {
               <div className="h-[360px] min-h-0">
                 <AIChat />
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeView === "newsintel" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
+            <div className="lg:col-span-6 min-h-0">
+              <Suspense fallback={<PanelFallback label="News Intelligence" />}>
+                <NewsIntelligencePanel />
+              </Suspense>
+            </div>
+            <div className="lg:col-span-3 min-h-0">
+              <Suspense fallback={<PanelFallback label="Scheduled News" />}>
+                <ScheduledNewsPanel />
+              </Suspense>
+            </div>
+            <div className="lg:col-span-3 min-h-0">
+              <Suspense fallback={<PanelFallback label="News Sources" />}>
+                <NewsSourcesPanel />
+              </Suspense>
             </div>
           </div>
         )}

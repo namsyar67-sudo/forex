@@ -17,6 +17,7 @@ interface TerminalHeaderProps {
 const VIEWS = [
   { id: "terminal", label: "Terminal" },
   { id: "agents", label: "Multi-Agent" },
+  { id: "newsintel", label: "News Intel" },
   { id: "analyst", label: "AI Analyst" },
   { id: "signals", label: "Signals" },
   { id: "monitor", label: "Monitor" },
@@ -41,8 +42,9 @@ export function TerminalHeader({
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
-    setNow(new Date());
-    const t = setInterval(() => setNow(new Date()), 1000);
+    const update = () => setNow(new Date());
+    update();
+    const t = setInterval(update, 1000);
     return () => clearInterval(t);
   }, []);
 

@@ -59,6 +59,7 @@ const ScheduledNewsPanel = lazy(() => import("@/components/terminal/v5/scheduled
 const AuditPanel = lazy(() => import("@/components/terminal/v6/audit-panel"));
 const AuditDetailDialog = lazy(() => import("@/components/terminal/v6/audit-detail-dialog"));
 const LatencyPanel = lazy(() => import("@/components/terminal/v6/latency-panel"));
+const AIDecisionPanel = lazy(() => import("@/components/terminal/v6/ai-decision-panel"));
 
 function PanelFallback({ label }: { label: string }) {
   return (
@@ -335,6 +336,30 @@ export default function TerminalPage() {
             <div className="lg:col-span-3 min-h-0">
               <Suspense fallback={<PanelFallback label="News Sources" />}>
                 <NewsSourcesPanel />
+              </Suspense>
+            </div>
+          </div>
+        )}
+
+        {activeView === "aidecision" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
+            <div className="lg:col-span-4 min-h-0">
+              <MarketGrid
+                quotes={quotes}
+                analysis={analysis}
+                instruments={instruments.length ? instruments : (getAllInstruments() as InstrumentDef[])}
+                selectedSymbol={selectedSymbol}
+                onSelect={setSelectedSymbol}
+              />
+            </div>
+            <div className="lg:col-span-5 min-h-0">
+              <Suspense fallback={<PanelFallback label="AI Decision" />}>
+                <AIDecisionPanel symbol={selectedSymbol} />
+              </Suspense>
+            </div>
+            <div className="lg:col-span-3 min-h-0">
+              <Suspense fallback={<PanelFallback label="AI Chat" />}>
+                <AIChat />
               </Suspense>
             </div>
           </div>

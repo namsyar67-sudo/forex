@@ -16,6 +16,7 @@ interface TerminalHeaderProps {
 
 const VIEWS = [
   { id: "terminal", label: "Terminal" },
+  { id: "aidecision", label: "AI Decision" },
   { id: "agents", label: "Multi-Agent" },
   { id: "newsintel", label: "News Intel" },
   { id: "audit", label: "Audit" },

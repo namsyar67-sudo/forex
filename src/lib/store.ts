@@ -4,7 +4,7 @@ import { create } from "zustand";
 
 interface TerminalState {
   selectedSymbol: string;
-  activeView: "terminal" | "agents" | "newsintel" | "audit" | "analyst" | "signals" | "monitor" | "analysis" | "smartmoney" | "mft" | "positions" | "journal" | "news" | "market";
+  activeView: "terminal" | "aidecision" | "agents" | "newsintel" | "audit" | "analyst" | "signals" | "monitor" | "analysis" | "smartmoney" | "mft" | "positions" | "journal" | "news" | "market";
   setSelectedSymbol: (s: string) => void;
   setActiveView: (v: TerminalState["activeView"]) => void;
 }

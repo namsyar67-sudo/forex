@@ -1,0 +1,31 @@
+# AI Trading Terminal — Docker Compose
+# Single-container deployment (terminal + market-stream service).
+
+version: "3.9"
+
+services:
+  terminal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-trading-terminal
+    ports:
+      - "3000:3000"  # Next.js terminal
+      - "3003:3003"  # WebSocket (market-stream)
+      - "3004:3004"  # REST API (market-stream, internal)
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/data/terminal.db
+      - AI_PROVIDER=zai
+    volumes:
+      - terminal-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/market/quotes"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  terminal-data:

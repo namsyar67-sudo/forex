@@ -1,0 +1,238 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.696 0.17 162.48);
+  --chart-2: oklch(0.769 0.188 70.08);
+  --chart-3: oklch(0.627 0.265 303.9);
+  --chart-4: oklch(0.645 0.246 16.439);
+  --chart-5: oklch(0.6 0.118 184.704);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* The terminal is always dark; we don't use .dark toggling */
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html, body {
+    @apply bg-background text-foreground;
+    background-color: #07090d;
+  }
+  body {
+    font-feature-settings: "ss01", "cv01", "cv03";
+  }
+}
+
+/* ---------- Trading Terminal Design Tokens ---------- */
+:root {
+  --tt-bg: #07090d;
+  --tt-bg-2: #0b0f15;
+  --tt-panel: rgba(17, 22, 30, 0.72);
+  --tt-panel-solid: #11161e;
+  --tt-border: rgba(255, 255, 255, 0.07);
+  --tt-border-strong: rgba(255, 255, 255, 0.12);
+  --tt-up: #10b981;
+  --tt-up-glow: rgba(16, 185, 129, 0.35);
+  --tt-down: #ef4444;
+  --tt-down-glow: rgba(239, 68, 68, 0.35);
+  --tt-accent: #f59e0b;
+  --tt-accent-2: #14b8a6;
+  --tt-neutral: #64748b;
+  --tt-text: #e6edf3;
+  --tt-text-dim: #8b97a7;
+  --tt-text-faint: #5a6573;
+}
+
+/* ---------- Glassmorphism Panels ---------- */
+.tt-glass {
+  background: var(--tt-panel);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid var(--tt-border);
+  box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset, 0 8px 32px -8px rgba(0, 0, 0, 0.5);
+}
+
+.tt-glass-strong {
+  background: rgba(13, 17, 24, 0.88);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--tt-border-strong);
+}
+
+.tt-panel {
+  background: linear-gradient(180deg, rgba(20, 26, 35, 0.7) 0%, rgba(13, 17, 24, 0.7) 100%);
+  border: 1px solid var(--tt-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ---------- Numeric / Mono ---------- */
+.tt-mono {
+  font-family: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ---------- Price flash animations ---------- */
+@keyframes tt-flash-up {
+  0% { background-color: rgba(16, 185, 129, 0.28); }
+  100% { background-color: transparent; }
+}
+@keyframes tt-flash-down {
+  0% { background-color: rgba(239, 68, 68, 0.28); }
+  100% { background-color: transparent; }
+}
+.tt-flash-up { animation: tt-flash-up 0.6s ease-out; }
+.tt-flash-down { animation: tt-flash-down 0.6s ease-out; }
+
+/* ---------- Pulse dot ---------- */
+@keyframes tt-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+.tt-pulse-dot { animation: tt-pulse 1.6s ease-in-out infinite; }
+
+/* ---------- Live status ring ---------- */
+@keyframes tt-ring {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+.tt-live-ring { animation: tt-ring 2s ease-out infinite; }
+
+/* ---------- Scrollbar ---------- */
+.tt-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+.tt-scroll::-webkit-scrollbar-track { background: transparent; }
+.tt-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+.tt-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+
+/* ---------- Ticker marquee ---------- */
+@keyframes tt-marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.tt-marquee { animation: tt-marquee 60s linear infinite; }
+.tt-marquee:hover { animation-play-state: paused; }
+
+/* ---------- Grid background ---------- */
+.tt-grid-bg {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* ---------- Signal badges ---------- */
+.tt-signal-strong-buy { color: #10b981; background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.3); }
+.tt-signal-buy { color: #34d399; background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.2); }
+.tt-signal-neutral { color: #94a3b8; background: rgba(148, 163, 184, 0.08); border-color: rgba(148, 163, 184, 0.2); }
+.tt-signal-sell { color: #f87171; background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.2); }
+.tt-signal-strong-sell { color: #ef4444; background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.3); }
+
+/* ---------- Utility ---------- */
+.tt-text-up { color: var(--tt-up); }
+.tt-text-down { color: var(--tt-down); }
+.tt-text-dim { color: var(--tt-text-dim); }
+.tt-text-faint { color: var(--tt-text-faint); }
+.tt-text-accent { color: var(--tt-accent); }
+
+.tt-divider { border-color: var(--tt-border); }
+
+/* hide number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none; margin: 0;
+}

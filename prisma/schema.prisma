@@ -1,0 +1,178 @@
+// AI Trading Terminal — Prisma Schema
+// Single-user local terminal. All config persisted in SQLite.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// TRADING PAIRS — instrument configuration
+// ============================================================
+model Pair {
+  id        String   @id @default(cuid())
+  symbol    String   @unique // e.g. EURUSD
+  name      String             // e.g. Euro / US Dollar
+  category  String             // forex | crypto | indices | metals | commodities
+  basePrice Float              // reference baseline price used by the engine
+  digits    Int      @default(5) // price precision
+  pipSize   Float    @default(0.0001)
+  lotSize   Float    @default(100000)
+  enabled   Boolean  @default(true)
+  watchlist Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  positions  Position[]
+  decisions  Decision[]
+  candles    Candle[]
+  ticks      Tick[]
+}
+
+// ============================================================
+// MARKET DATA — candles & ticks (cached/snapshotted)
+// ============================================================
+model Candle {
+  id        String   @id @default(cuid())
+  pairId    String
+  symbol    String
+  timeframe String             // m1 | m5 | m15 | h1 | h4 | d1
+  time      Int                // epoch seconds (open time)
+  open      Float
+  high      Float
+  low       Float
+  close     Float
+  volume    Float
+  pair      Pair     @relation(fields: [pairId], references: [id], onDelete: Cascade)
+
+  @@unique([symbol, timeframe, time])
+  @@index([symbol, timeframe, time])
+}
+
+model Tick {
+  id        String   @id @default(cuid())
+  pairId    String
+  symbol    String
+  price     Float
+  bid       Float
+  ask       Float
+  spread    Float
+  time      Int
+  pair      Pair     @relation(fields: [pairId], references: [id], onDelete: Cascade)
+
+  @@index([symbol, time])
+}
+
+// ============================================================
+// POSITIONS — manual trade journal
+// ============================================================
+model Position {
+  id         String   @id @default(cuid())
+  pairId     String
+  symbol     String
+  side       String             // long | short
+  status     String   @default("open") // open | closed
+  entryPrice Float
+  exitPrice  Float?
+  size       Float              // lots
+  stopLoss   Float?
+  takeProfit Float?
+  pnl        Float    @default(0)
+  pnlPips    Float    @default(0)
+  confidence Float    @default(0) // AI confidence at open
+  rationale  String?            // AI rationale text
+  openedAt   DateTime @default(now())
+  closedAt   DateTime?
+  pair       Pair     @relation(fields: [pairId], references: [id], onDelete: Cascade)
+
+  @@index([symbol, status])
+}
+
+// ============================================================
+// AI DECISIONS — recommendation history
+// ============================================================
+model Decision {
+  id          String   @id @default(cuid())
+  pairId      String
+  symbol      String
+  action      String             // buy | sell | hold | wait
+  confidence  Float              // 0..100
+  entryZone   String?
+  stopLoss    Float?
+  takeProfit  Float?
+  riskScore   Float              // 0..100
+  trend       String?
+  volatility  String?
+  session     String?
+  summary     String
+  rationale   String
+  indicators  String             // JSON string of indicator snapshot
+  createdAt   DateTime @default(now())
+  pair        Pair     @relation(fields: [pairId], references: [id], onDelete: Cascade)
+
+  @@index([symbol, createdAt])
+}
+
+// ============================================================
+// NEWS — cached market news
+// ============================================================
+model News {
+  id        String   @id @default(cuid())
+  title     String
+  summary   String
+  source    String
+  url       String?
+  category  String             // forex | crypto | macro | geopolitics
+  impact    String   @default("medium") // low | medium | high
+  symbols   String?            // comma-separated related symbols
+  publishedAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([publishedAt])
+}
+
+// ============================================================
+// ECONOMIC CALENDAR — scheduled events
+// ============================================================
+model CalendarEvent {
+  id          String   @id @default(cuid())
+  title       String
+  country     String
+  currency    String
+  impact      String   @default("medium") // low | medium | high
+  actual      String?
+  forecast    String?
+  previous    String?
+  eventTime   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([eventTime])
+}
+
+// ============================================================
+// ALERTS — notifications generated by monitoring
+// ============================================================
+model Alert {
+  id        String   @id @default(cuid())
+  type      String             // price | signal | news | risk | system
+  symbol    String?
+  severity  String   @default("info") // info | warning | critical
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([read, createdAt])
+}
+
+// ============================================================
+// SETTINGS — local terminal configuration
+// ============================================================
+model Setting {
+  id    String @id
+  value String
+}

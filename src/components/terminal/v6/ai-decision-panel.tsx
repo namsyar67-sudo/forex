@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Brain, Newspaper, TrendingUp, Shield, ExternalLink, Loader2, RefreshCw, AlertTriangle, Zap } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Brain, Newspaper, TrendingUp, Shield, ExternalLink, Loader2, RefreshCw, AlertTriangle, Zap, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface AIDecision {
@@ -25,6 +24,8 @@ interface AIDecision {
   keyFactors: string[];
   riskWarnings: string[];
   newsSourcesRead: { title: string; source: string; url: string }[];
+  marketStatus?: "open" | "closed" | "weekend" | "holiday";
+  marketStatusReason?: string;
   timestamp: number;
 }
 
@@ -36,37 +37,42 @@ export function AIDecisionPanel({ symbol }: Props) {
   const [decision, setDecision] = useState<AIDecision | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fetchRef = useRef(0);
 
   const fetchDecision = async () => {
+    const id = ++fetchRef.current;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/ai-decision/${symbol}`, { signal: AbortSignal.timeout(25000) });
-      if (!res.ok) throw new Error("Failed");
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 25000);
+      const res = await fetch(`/api/ai-decision/${symbol}`, { signal: controller.signal });
+      clearTimeout(timer);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (id !== fetchRef.current) return; // stale response
       setDecision(data.decision);
     } catch (e: any) {
-      setError(e.message || "Failed to get AI decision");
+      if (id !== fetchRef.current) return;
+      setError(e.name === "AbortError" ? "Request timed out (25s). AI may be processing — try again." : (e.message || "Failed to get AI decision"));
     } finally {
-      setLoading(false);
+      if (id === fetchRef.current) setLoading(false);
     }
   };
 
   useEffect(() => {
     setDecision(null);
+    setError(null);
     fetchDecision();
   }, [symbol]);
-
-  const decisionColor =
-    decision?.decision === "BUY" ? "tt-text-up" :
-    decision?.decision === "SELL" ? "tt-text-down" :
-    decision?.decision === "WAIT" ? "text-amber-400" : "text-slate-400";
 
   const decisionBg =
     decision?.decision === "BUY" ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400" :
     decision?.decision === "SELL" ? "bg-red-500/15 border-red-500/30 text-red-400" :
     decision?.decision === "WAIT" ? "bg-amber-500/15 border-amber-500/30 text-amber-400" :
     "bg-slate-500/15 border-slate-500/30 text-slate-400";
+
+  const isMarketClosed = decision?.marketStatus && decision.marketStatus !== "open";
 
   return (
     <div className="tt-panel rounded-xl flex flex-col h-full overflow-hidden">
@@ -99,11 +105,11 @@ export function AIDecisionPanel({ symbol }: Props) {
           </div>
         )}
 
-        {error && (
+        {error && !loading && (
           <div className="p-4 text-center">
             <AlertTriangle className="w-6 h-6 text-red-400 mx-auto mb-2" />
-            <p className="text-xs text-red-400">{error}</p>
-            <Button size="sm" variant="ghost" onClick={fetchDecision} className="mt-2 h-7 text-xs">
+            <p className="text-xs text-red-400 mb-2">{error}</p>
+            <Button size="sm" variant="ghost" onClick={fetchDecision} className="h-7 text-xs">
               Retry
             </Button>
           </div>
@@ -111,6 +117,19 @@ export function AIDecisionPanel({ symbol }: Props) {
 
         {decision && (
           <div className="p-3 space-y-3">
+            {/* Market Status Banner (if closed) */}
+            {isMarketClosed && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 flex items-start gap-2">
+                <Clock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-xs font-semibold text-amber-400 uppercase tracking-wider">
+                    Market {decision.marketStatus}
+                  </div>
+                  <p className="text-[11px] text-amber-300/80 mt-0.5">{decision.marketStatusReason}</p>
+                </div>
+              </div>
+            )}
+
             {/* Decision Card */}
             <div className={`rounded-lg border p-3 ${decisionBg}`}>
               <div className="flex items-center justify-between mb-2">
@@ -136,7 +155,7 @@ export function AIDecisionPanel({ symbol }: Props) {
             </div>
 
             {/* Trade Setup */}
-            {decision.decision !== "WAIT" && decision.decision !== "HOLD" && (
+            {!isMarketClosed && decision.decision !== "WAIT" && decision.decision !== "HOLD" && decision.entryPrice > 0 && (
               <div className="rounded-lg bg-black/20 border border-white/5 p-2.5">
                 <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Trade Setup</div>
                 <div className="grid grid-cols-3 gap-2 text-xs">
@@ -169,12 +188,14 @@ export function AIDecisionPanel({ symbol }: Props) {
             )}
 
             {/* Reasoning */}
-            <div className="rounded-lg bg-black/20 border border-white/5 p-2.5">
-              <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-1">
-                <Brain className="w-3 h-3 text-emerald-400" /> AI Reasoning
+            {decision.reasoning && (
+              <div className="rounded-lg bg-black/20 border border-white/5 p-2.5">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-1">
+                  <Brain className="w-3 h-3 text-emerald-400" /> AI Reasoning
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">{decision.reasoning}</p>
               </div>
-              <p className="text-xs text-slate-300 leading-relaxed">{decision.reasoning}</p>
-            </div>
+            )}
 
             {/* Analysis Sections */}
             {decision.newsAnalysis && (
@@ -191,7 +212,7 @@ export function AIDecisionPanel({ symbol }: Props) {
             )}
 
             {/* Key Factors */}
-            {decision.keyFactors.length > 0 && (
+            {decision.keyFactors && decision.keyFactors.length > 0 && (
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Key Factors</div>
                 <div className="flex flex-wrap gap-1">
@@ -205,7 +226,7 @@ export function AIDecisionPanel({ symbol }: Props) {
             )}
 
             {/* Risk Warnings */}
-            {decision.riskWarnings.length > 0 && (
+            {decision.riskWarnings && decision.riskWarnings.length > 0 && (
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3 text-amber-400" /> Risk Warnings
@@ -221,7 +242,7 @@ export function AIDecisionPanel({ symbol }: Props) {
             )}
 
             {/* News Sources Read */}
-            {decision.newsSourcesRead.length > 0 && (
+            {decision.newsSourcesRead && decision.newsSourcesRead.length > 0 && (
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1">
                   <Newspaper className="w-3 h-3 text-sky-400" />
@@ -258,7 +279,7 @@ function AnalysisSection({ title, icon: Icon, text, color }: { title: string; ic
       <div className={`text-[10px] uppercase tracking-wider mb-1 flex items-center gap-1 ${color}`}>
         <Icon className="w-3 h-3" /> {title}
       </div>
-      <p className="text-[11px] text-slate-400 leading-relaxed">{text}</p>
+      <p className="text-[11px] text-slate-400 leading-relaxed whitespace-pre-wrap">{text}</p>
     </div>
   );
 }

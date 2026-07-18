@@ -8,7 +8,7 @@
  */
 import type { AgentContext, AgentReport, ChiefDecision, AgentRecommendation } from "./types";
 import { ALL_AGENTS } from "./specialists";
-import { analyzePair, buildAnalysisSummary } from "@/lib/market/analysis";
+import { getAllAnalysisCached } from "@/lib/market/analysis";
 import { getCandles, getAllQuotes } from "@/lib/market/client";
 import { analyzeSmartMoney } from "@/lib/smart-money/engine";
 import { analyzeMultiTimeframe } from "@/lib/multi-timeframe/engine";
@@ -17,7 +17,6 @@ import { recordDecisionAudit } from "@/lib/audit/service";
 import { startTimer, endTimer } from "@/lib/audit/latency";
 import { analyzeSessions } from "@/lib/session-analysis/engine";
 import { computeHeatmap } from "@/lib/heatmap/engine";
-import { correlationMatrix } from "@/lib/market/analysis";
 import { db } from "@/lib/db";
 import { DEFAULT_INSTRUMENTS } from "@/lib/market/instruments";
 import { getOrCompute } from "@/lib/cache";
@@ -28,23 +27,8 @@ export async function buildAgentContext(symbol: string): Promise<AgentContext> {
   const quote = quotes.find((q) => q.symbol === sym);
   const inst = DEFAULT_INSTRUMENTS.find((i) => i.symbol === sym);
 
-  // Use cached analysis
-  const allAnalysis = await getOrCompute("analysis:full:all", 10000, async () => {
-    const { quotes: qs, session } = await getAllQuotes();
-    const results: any[] = [];
-    for (const q of qs) {
-      const { candles } = await getCandles(q.symbol, "h1", 150);
-      if (candles.length < 50) continue;
-      const { analyzeFromData } = await import("@/lib/market/analysis");
-      const a = analyzeFromData(q.symbol, candles, q, session);
-      if (a) {
-        const { candles: _c, ...light } = a;
-        results.push(light);
-      }
-    }
-    return results;
-  });
-
+  // Use shared cached analysis (also used by /api/analysis and /api/scanner)
+  const allAnalysis = await getAllAnalysisCached();
   const analysis = allAnalysis.find((a: any) => a.symbol === sym);
 
   // Per-symbol heavy analyses (only compute on demand)

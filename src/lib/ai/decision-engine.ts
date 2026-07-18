@@ -230,20 +230,100 @@ export interface AIDecision {
   riskWarnings: string[];
   // What news the AI read
   newsSourcesRead: { title: string; source: string; url: string }[];
+  // Market status
+  marketStatus: "open" | "closed" | "weekend" | "holiday";
+  marketStatusReason: string;
   // Timestamps
   timestamp: number;
+}
+
+// ---------- Market hours check ----------
+export function getMarketStatus(symbol: string): { status: "open" | "closed" | "weekend" | "holiday"; reason: string } {
+  const now = new Date();
+  const day = now.getUTCDay(); // 0=Sunday, 6=Saturday
+  const hour = now.getUTCHours();
+
+  // Crypto is ALWAYS open (24/7/365)
+  if (symbol.includes("BTC") || symbol.includes("ETH")) {
+    return { status: "open", reason: "Crypto markets are open 24/7 including weekends and holidays." };
+  }
+
+  // Saturday: all traditional markets closed
+  if (day === 6) {
+    return { status: "weekend", reason: "Saturday — Forex, stocks, and most markets are closed. Markets reopen Sunday evening (UTC) / Monday morning." };
+  }
+
+  // Sunday: Forex opens at 22:00 UTC (Sydney)
+  if (day === 0) {
+    if (hour < 22) {
+      return { status: "weekend", reason: "Sunday before 22:00 UTC — Forex market is still closed. Opens at 22:00 UTC (Sydney session)." };
+    }
+    return { status: "open", reason: "Sunday after 22:00 UTC — Sydney session starting. Low liquidity expected." };
+  }
+
+  // Friday after 22:00 UTC: Forex closed
+  if (day === 5 && hour >= 22) {
+    return { status: "closed", reason: "Friday after 22:00 UTC — Forex market closed for the weekend." };
+  }
+
+  return { status: "open", reason: "Markets are open for trading." };
 }
 
 export async function getAIDecision(symbol: string): Promise<AIDecision | null> {
   const sym = symbol.toUpperCase();
 
-  // Step 1: Search for REAL news
-  const inst = (await getCandles(sym, "h1", 5));
+  // Check market status first
+  const marketStatus = getMarketStatus(sym);
+
+  // Determine category for news search
   const category = sym.includes("XAU") || sym.includes("XAG") ? "metals" :
                    sym.includes("BTC") || sym.includes("ETH") ? "crypto" :
                    sym.includes("USD") && !sym.startsWith("X") ? "forex" : "indices";
 
+  // Search for REAL news (always, even when closed — for Monday prep)
   const news = await getOrCompute(`realnews:${sym}`, 60000, () => searchRealNews(sym, category));
+
+  // If market is closed/weekend, return WAIT immediately
+  if (marketStatus.status !== "open") {
+    const marketData = await gatherMarketData(sym);
+    return {
+      symbol: sym,
+      decision: "WAIT",
+      confidence: 90,
+      direction: "neutral",
+      entryPrice: marketData?.price || 0,
+      stopLoss: 0,
+      takeProfit1: 0,
+      takeProfit2: 0,
+      takeProfit3: 0,
+      riskReward: 0,
+      reasoning: `Market is currently ${marketStatus.status === "weekend" ? "closed for the weekend" : "closed"}. ${marketStatus.reason} No trading decisions are made when markets are closed. The AI will resume analysis when markets reopen.`,
+      newsAnalysis: news.length > 0
+        ? `${news.length} news items were found. Review them for Monday's session preparation. Key headlines:\n${news.slice(0, 3).map(n => `- ${n.title}`).join("\n")}`
+        : "No significant news found during weekend.",
+      marketAnalysis: marketData
+        ? `Last known price: ${marketData.price}. Trend: ${marketData.trend}. RSI: ${marketData.rsi}. These are Friday's closing levels — they may gap on Monday open.`
+        : "Market data unavailable.",
+      liquidityAnalysis: "No liquidity during closed markets. Expect gaps and low liquidity at Sunday/Monday open.",
+      chartAnalysis: marketData
+        ? `Friday's structure: ${marketData.smcBias} bias, ${marketData.activeOrderBlocks} OBs, ${marketData.activeFVGs} FVGs. These levels may be tested on Monday.`
+        : "Chart data unavailable.",
+      keyFactors: [
+        `Market ${marketStatus.status}`,
+        "Weekend — no live trading",
+        news.length > 0 ? `${news.length} news items for review` : "No news",
+      ],
+      riskWarnings: [
+        "Do not trade when markets are closed",
+        "Watch for Monday morning gaps",
+        "Review weekend news for Monday preparation",
+      ],
+      newsSourcesRead: news.map((n) => ({ title: n.title, source: n.source, url: n.url })),
+      marketStatus: marketStatus.status,
+      marketStatusReason: marketStatus.reason,
+      timestamp: Date.now(),
+    };
+  }
 
   // Step 2: Gather all market data
   const marketData = await gatherMarketData(sym);
@@ -378,6 +458,8 @@ Now make your decision based on ALL of the above.`;
           keyFactors: parsed.keyFactors || [],
           riskWarnings: parsed.riskWarnings || [],
           newsSourcesRead: news.map((n) => ({ title: n.title, source: n.source, url: n.url })),
+          marketStatus: marketStatus.status,
+          marketStatusReason: marketStatus.reason,
           timestamp: Date.now(),
         };
       } catch {
@@ -422,6 +504,8 @@ function fallbackDecision(marketData: MarketDataSnapshot, news: RealNewsItem[], 
     keyFactors: [`${marketData.trend} trend`, `RSI ${marketData.rsi}`, `SMC ${marketData.smcBias}`],
     riskWarnings: [`Risk score ${marketData.riskScore}/100`],
     newsSourcesRead: news.map((n) => ({ title: n.title, source: n.source, url: n.url })),
+    marketStatus: marketStatus.status,
+    marketStatusReason: marketStatus.reason,
     timestamp: Date.now(),
   };
 }

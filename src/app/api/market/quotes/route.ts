@@ -72,24 +72,62 @@ export async function GET() {
       try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 4000);
-        const res = await fetch(
-          `https://api.binance.com/api/v3/ticker/24hr?symbol=${bnSymbol}`,
-          { signal: controller.signal }
-        );
-        clearTimeout(timer);
-        if (!res.ok) return null;
-        const d = await res.json();
-        const bid = parseFloat(d.bidPrice);
-        const ask = parseFloat(d.askPrice);
-        const last = (bid + ask) / 2;
+
+        // Try Binance first, then Coinbase as fallback
+        let last: number, bid: number, ask: number, changePct: number, high: number, low: number;
+
+        try {
+          const res = await fetch(
+            `https://api.binance.com/api/v3/ticker/24hr?symbol=${bnSymbol}`,
+            { signal: controller.signal }
+          );
+          clearTimeout(timer);
+          if (res.ok) {
+            const d = await res.json();
+            bid = parseFloat(d.bidPrice);
+            ask = parseFloat(d.askPrice);
+            last = (bid + ask) / 2;
+            changePct = parseFloat(d.priceChangePercent);
+            high = parseFloat(d.highPrice);
+            low = parseFloat(d.lowPrice);
+          } else {
+            throw new Error("Binance failed");
+          }
+        } catch {
+          // Fallback: Coinbase API (no key needed, works on Vercel)
+          const cbController = new AbortController();
+          const cbTimer = setTimeout(() => cbController.abort(), 4000);
+          const product = symbol === "BTCUSD" ? "BTC-USD" : "ETH-USD";
+          const [spotRes, statsRes] = await Promise.all([
+            fetch(`https://api.coinbase.com/v2/prices/${product}/spot`, { signal: cbController.signal }),
+            fetch(`https://api.exchange.coinbase.com/products/${product}/stats`, { signal: cbController.signal }),
+          ]);
+          clearTimeout(cbTimer);
+          if (!spotRes.ok) return null;
+          const spotData = await spotRes.json();
+          last = parseFloat(spotData.data.amount);
+          bid = last;
+          ask = last;
+          changePct = 0;
+          high = last;
+          low = last;
+          if (statsRes.ok) {
+            const stats = await statsRes.json();
+            high = parseFloat(stats.high);
+            low = parseFloat(stats.low);
+            const open = parseFloat(stats.open);
+            changePct = open > 0 ? ((last - open) / open) * 100 : 0;
+          }
+        }
+
         const inst = INSTRUMENT_MAP[symbol];
         const eq = engine.getQuote(symbol);
         return {
-          symbol, bid, ask, last, spread: ask - bid,
-          changePct: parseFloat(d.priceChangePercent),
+          symbol, bid, ask, last, spread: Math.max(0.01, ask - bid),
+          changePct,
           changeAbs: last - (eq?.open || last),
-          high: parseFloat(d.highPrice),
-          low: parseFloat(d.lowPrice),
+          high,
+          low,
           open: eq?.open || last,
           time: Math.floor(now / 1000), digits: inst.digits,
         } as Quote;

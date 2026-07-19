@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useLiveQuotes } from "@/hooks/use-live-quotes";
+import { useNotificationSound } from "@/hooks/use-notification-sound";
+import { useAutoSignalMonitor } from "@/hooks/use-auto-signal-monitor";
 import { useTerminalStore } from "@/lib/store";
 import { DEFAULT_INSTRUMENTS } from "@/lib/market/instruments";
 import type { InstrumentDef, PairAnalysis, AnalysisSummary, Quote, Alert } from "@/lib/types";
@@ -72,6 +74,11 @@ function PanelFallback({ label }: { label: string }) {
 export default function TerminalPage() {
   const { quotes, session, connected } = useLiveQuotes();
   const { selectedSymbol, activeView, setSelectedSymbol, setActiveView } = useTerminalStore();
+
+  // Sound notifications — plays sound for new signals, TP/SL hits, news changes
+  useNotificationSound(true);
+  // Auto signal monitor — scans market every 2min, monitors trade events every 15s
+  useAutoSignalMonitor(true);
 
   const [instruments, setInstruments] = useState<InstrumentDef[]>([]);
   const [analysis, setAnalysis] = useState<Record<string, PairAnalysis>>({});

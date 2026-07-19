@@ -203,12 +203,17 @@ export async function getAllRealQuotes(): Promise<{ quotes: RealQuote[]; session
   const engine = getMarketEngine();
   engine.tick(); // Advance simulation for candle generation
 
-  // Try to fetch real prices (cached for 30 seconds)
-  const realPrices = await getOrCompute("real:prices:all", 30000, () => fetchAllRealPrices());
+  // Try to fetch real prices (cached for 15 seconds)
+  let realPrices: Record<string, RealQuote> | null = null;
+  try {
+    realPrices = await getOrCompute("real:prices:all", 15000, () => fetchAllRealPrices());
+  } catch {
+    realPrices = null;
+  }
 
   const quotes: RealQuote[] = [];
   for (const inst of DEFAULT_INSTRUMENTS) {
-    const realQuote = realPrices[inst.symbol];
+    const realQuote = realPrices?.[inst.symbol];
     if (realQuote) {
       quotes.push(realQuote);
     } else {

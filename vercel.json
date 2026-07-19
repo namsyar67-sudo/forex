@@ -3,6 +3,15 @@
   "buildCommand": "prisma generate && next build",
   "installCommand": "bun install",
   "functions": {
+    "src/app/api/ai-decision/**/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/agents/**/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/news-intelligence/**/route.ts": {
+      "maxDuration": 30
+    },
     "src/app/api/**/route.ts": {
       "maxDuration": 30
     }

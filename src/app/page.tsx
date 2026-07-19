@@ -3,7 +3,7 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { useLiveQuotes } from "@/hooks/use-live-quotes";
 import { useTerminalStore } from "@/lib/store";
-import { getAllInstruments } from "@/lib/market/instruments";
+import { DEFAULT_INSTRUMENTS } from "@/lib/market/instruments";
 import type { InstrumentDef, PairAnalysis, AnalysisSummary, Quote, Alert } from "@/lib/types";
 
 import { TerminalHeader } from "@/components/terminal/terminal-header";
@@ -265,7 +265,7 @@ export default function TerminalPage() {
               <MarketGrid
                 quotes={quotes}
                 analysis={analysis}
-                instruments={instruments.length ? instruments : (getAllInstruments() as InstrumentDef[])}
+                instruments={instruments.length ? instruments : (DEFAULT_INSTRUMENTS as InstrumentDef[])}
                 selectedSymbol={selectedSymbol}
                 onSelect={setSelectedSymbol}
               />
@@ -347,7 +347,7 @@ export default function TerminalPage() {
               <MarketGrid
                 quotes={quotes}
                 analysis={analysis}
-                instruments={instruments.length ? instruments : (getAllInstruments() as InstrumentDef[])}
+                instruments={instruments.length ? instruments : (DEFAULT_INSTRUMENTS as InstrumentDef[])}
                 selectedSymbol={selectedSymbol}
                 onSelect={setSelectedSymbol}
               />

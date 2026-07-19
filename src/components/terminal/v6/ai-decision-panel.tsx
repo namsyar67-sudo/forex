@@ -49,8 +49,17 @@ export function AIDecisionPanel({ symbol }: Props) {
       const res = await fetch(`/api/ai-decision/${symbol}`, { signal: controller.signal });
       clearTimeout(timer);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error("Server returned non-JSON response (may have timed out). Try again.");
+      }
+
       const data = await res.json();
       if (id !== fetchRef.current) return; // stale response
+      if (!data || !data.decision) {
+        throw new Error(data?.error || "No decision returned by AI");
+      }
       setDecision(data.decision);
     } catch (e: any) {
       if (id !== fetchRef.current) return;

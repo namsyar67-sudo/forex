@@ -14,7 +14,6 @@ import { MarketOverview } from "@/components/terminal/market-overview";
 import { MarketGrid } from "@/components/terminal/market-grid";
 import { ChartPanel } from "@/components/terminal/chart-panel";
 import { AnalysisPanel } from "@/components/terminal/analysis-panel";
-import { AIChat } from "@/components/terminal/ai-chat";
 import { NewsFeed } from "@/components/terminal/news-feed";
 import { CalendarPanel } from "@/components/terminal/calendar-panel";
 import { PositionsPanel } from "@/components/terminal/positions-panel";
@@ -306,9 +305,6 @@ export default function TerminalPage() {
                   onOpenPosition={handleOpenPosition}
                 />
               </div>
-              <div className="h-[360px] min-h-0">
-                <AIChat />
-              </div>
             </div>
           </div>
         )}
@@ -359,14 +355,9 @@ export default function TerminalPage() {
                 onSelect={setSelectedSymbol}
               />
             </div>
-            <div className="lg:col-span-5 min-h-0">
+            <div className="lg:col-span-8 min-h-0">
               
                 <AIDecisionPanel symbol={selectedSymbol} />
-              
-            </div>
-            <div className="lg:col-span-3 min-h-0">
-              
-                <AIChat />
               
             </div>
           </div>

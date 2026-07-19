@@ -135,7 +135,7 @@ export function PositionsPanel({ onRefresh }: PositionsPanelProps) {
           </div>
         ) : (
           <div className="overflow-x-auto tt-scroll">
-            <table className="w-full text-xs min-w-[860px]">
+            <table className="w-full text-xs ">
               <thead className="sticky top-0 bg-[#0a0d12]/95 backdrop-blur z-10">
                 <tr className="text-[10px] uppercase tracking-wider text-slate-500">
                   <th className="text-left font-medium px-3 py-2">Symbol</th>

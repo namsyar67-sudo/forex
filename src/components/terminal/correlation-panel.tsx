@@ -129,7 +129,7 @@ export function CorrelationPanel({ className }: CorrelationPanelProps) {
                 {symbols.map((s) => (
                   <th
                     key={s}
-                    className="sticky top-0 z-10 bg-[#0a0d12] backdrop-blur-sm px-1 py-1 text-center font-semibold text-slate-400 whitespace-nowrap min-w-[40px]"
+                    className="sticky top-0 z-10 bg-[#0a0d12] backdrop-blur-sm px-1 py-1 text-center font-semibold text-slate-400 whitespace-nowrap "
                     title={s}
                   >
                     <span className="tt-mono">{s.length > 6 ? s.slice(0, 6) : s}</span>
@@ -156,7 +156,7 @@ export function CorrelationPanel({ className }: CorrelationPanelProps) {
                       <td
                         key={j}
                         style={cellStyle(val, isDiagonal)}
-                        className="text-center px-1 py-1 border border-white/5 min-w-[40px] h-[24px]"
+                        className="text-center px-1 py-1 border border-white/5  h-[24px]"
                         title={`${symbols[i]} × ${symbols[j]}: ${val.toFixed(2)}`}
                       >
                         <span className={`tt-mono ${cellTextClass(val, isDiagonal)}`}>

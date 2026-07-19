@@ -107,6 +107,8 @@
   html, body {
     @apply bg-background text-foreground;
     background-color: #07090d;
+    max-width: 100vw;
+    overflow-x: hidden;
   }
   body {
     font-feature-settings: "ss01", "cv01", "cv03";

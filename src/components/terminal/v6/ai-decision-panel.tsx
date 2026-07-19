@@ -16,6 +16,7 @@ interface AIDecision {
   takeProfit2: number;
   takeProfit3: number;
   riskReward: number;
+  timeframe?: string;
   reasoning: string;
   newsAnalysis: string;
   marketAnalysis: string;
@@ -161,6 +162,12 @@ export function AIDecisionPanel({ symbol }: Props) {
                   <span className="font-semibold tt-mono">1:{decision.riskReward}</span>
                 </div>
               </div>
+              {decision.timeframe && (
+                <div className="mt-2 pt-2 border-t border-white/10">
+                  <div className="text-[9px] uppercase opacity-70 mb-0.5">Analysis Timeframe</div>
+                  <div className="text-[11px] font-medium">{decision.timeframe}</div>
+                </div>
+              )}
             </div>
 
             {/* Trade Setup */}

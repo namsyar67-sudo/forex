@@ -220,6 +220,7 @@ export interface AIDecision {
   takeProfit2: number;
   takeProfit3: number;
   riskReward: number;
+  timeframe: string; // primary analysis timeframe
   // AI's reasoning
   reasoning: string;
   newsAnalysis: string;
@@ -297,6 +298,7 @@ export async function getAIDecision(symbol: string): Promise<AIDecision | null> 
       takeProfit2: 0,
       takeProfit3: 0,
       riskReward: 0,
+      timeframe: "H1 (Primary) + M15 + H4 + D1 (Multi-Timeframe Confirmation)",
       reasoning: `Market is currently ${marketStatus.status === "weekend" ? "closed for the weekend" : "closed"}. ${marketStatus.reason} No trading decisions are made when markets are closed. The AI will resume analysis when markets reopen.`,
       newsAnalysis: news.length > 0
         ? `${news.length} news items were found. Review them for Monday's session preparation. Key headlines:\n${news.slice(0, 3).map(n => `- ${n.title}`).join("\n")}`
@@ -336,10 +338,10 @@ export async function getAIDecision(symbol: string): Promise<AIDecision | null> 
 
 Your job:
 1. READ the real news from the web (provided below).
-2. ANALYZE the chart (technical indicators, EMA, RSI, MACD, Bollinger).
-3. ANALYZE the Smart Money structure (BOS, CHOCH, Order Blocks, FVG, liquidity).
+2. ANALYZE the chart on H1 (primary timeframe) — technical indicators, EMA, RSI, MACD, Bollinger.
+3. ANALYZE the Smart Money structure (BOS, CHOCH, Order Blocks, FVG, liquidity) on H1.
 4. ANALYZE the liquidity and session conditions.
-5. ANALYZE the multi-timeframe alignment.
+5. ANALYZE the multi-timeframe alignment (M15, H1, H4, D1) for confirmation.
 6. Make a FINAL DECISION: BUY, SELL, WAIT, or HOLD.
 
 CRITICAL RULES:
@@ -349,7 +351,8 @@ CRITICAL RULES:
 - The decision must be based on the CONFLUENCE of multiple factors.
 - Always provide clear entry, stop loss, and 3 take profit levels.
 - Risk management is mandatory — never suggest a trade with RR worse than 1:2.
-
+- ALWAYS mention the timeframe in your reasoning (e.g., "On H1 timeframe..." or "Based on H1 with M15 and H4 confirmation...").
+- The primary analysis timeframe is H1. M15 is for entry timing. H4 and D1 are for trend confirmation.
 Respond in valid JSON only:
 {
   "decision": "BUY|SELL|WAIT|HOLD",
@@ -450,6 +453,7 @@ Now make your decision based on ALL of the above.`;
           takeProfit2: tp2,
           takeProfit3: tp3,
           riskReward: Math.round(rr * 10) / 10,
+          timeframe: "H1 (Primary) + M15 + H4 + D1 (Multi-Timeframe Confirmation)",
           reasoning: parsed.reasoning || "",
           newsAnalysis: parsed.newsAnalysis || "",
           marketAnalysis: parsed.marketAnalysis || "",
@@ -496,6 +500,7 @@ function fallbackDecision(marketData: MarketDataSnapshot, news: RealNewsItem[], 
     takeProfit2: tp2,
     takeProfit3: tp3,
     riskReward: Math.round(rr * 10) / 10,
+    timeframe: "H1 (Primary) + M15 + H4 + D1 (Multi-Timeframe Confirmation)",
     reasoning: `AI decision engine unavailable${errorMsg ? ` (${errorMsg})` : ""}. Falling back to quant analysis. ${marketData.trend} trend, RSI ${marketData.rsi}, signal ${marketData.signal}.`,
     newsAnalysis: `${news.length} news items were searched. AI analysis unavailable — review manually.`,
     marketAnalysis: `${marketData.trend} trend, ADX ${marketData.adx}, RSI ${marketData.rsi}.`,

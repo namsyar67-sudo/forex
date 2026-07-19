@@ -165,32 +165,32 @@ export function AIDecisionPanel({ symbol }: Props) {
 
             {/* Trade Setup */}
             {!isMarketClosed && decision.decision !== "WAIT" && decision.decision !== "HOLD" && decision.entryPrice > 0 && (
-              <div className="rounded-lg bg-black/20 border border-white/5 p-2.5">
-                <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1.5">Trade Setup</div>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div>
-                    <div className="text-[9px] text-slate-500">Entry</div>
-                    <div className="tt-mono text-slate-200">{decision.entryPrice.toFixed(5)}</div>
+              <div className="rounded-lg bg-black/20 border border-white/5 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-2">Trade Setup</div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                  <div className="bg-white/5 rounded px-2 py-1.5">
+                    <div className="text-[9px] text-slate-500 uppercase">Entry</div>
+                    <div className="tt-mono text-slate-200 text-sm font-semibold break-all">{decision.entryPrice}</div>
                   </div>
-                  <div>
-                    <div className="text-[9px] text-slate-500">Stop Loss</div>
-                    <div className="tt-mono tt-text-down">{decision.stopLoss.toFixed(5)}</div>
+                  <div className="bg-red-500/5 rounded px-2 py-1.5 border border-red-500/10">
+                    <div className="text-[9px] text-slate-500 uppercase">Stop Loss</div>
+                    <div className="tt-mono tt-text-down text-sm font-semibold break-all">{decision.stopLoss}</div>
                   </div>
-                  <div>
-                    <div className="text-[9px] text-slate-500">RR</div>
-                    <div className="tt-mono text-slate-200">1:{decision.riskReward}</div>
+                  <div className="bg-white/5 rounded px-2 py-1.5">
+                    <div className="text-[9px] text-slate-500 uppercase">Risk Reward</div>
+                    <div className="tt-mono text-slate-200 text-sm font-semibold">1:{decision.riskReward}</div>
                   </div>
-                  <div>
-                    <div className="text-[9px] text-slate-500">TP1</div>
-                    <div className="tt-mono tt-text-up">{decision.takeProfit1.toFixed(5)}</div>
+                  <div className="bg-emerald-500/5 rounded px-2 py-1.5 border border-emerald-500/10">
+                    <div className="text-[9px] text-slate-500 uppercase">TP1</div>
+                    <div className="tt-mono tt-text-up text-sm font-semibold break-all">{decision.takeProfit1}</div>
                   </div>
-                  <div>
-                    <div className="text-[9px] text-slate-500">TP2</div>
-                    <div className="tt-mono tt-text-up">{decision.takeProfit2.toFixed(5)}</div>
+                  <div className="bg-emerald-500/5 rounded px-2 py-1.5 border border-emerald-500/10">
+                    <div className="text-[9px] text-slate-500 uppercase">TP2</div>
+                    <div className="tt-mono tt-text-up text-sm font-semibold break-all">{decision.takeProfit2}</div>
                   </div>
-                  <div>
-                    <div className="text-[9px] text-slate-500">TP3</div>
-                    <div className="tt-mono tt-text-up">{decision.takeProfit3.toFixed(5)}</div>
+                  <div className="bg-emerald-500/5 rounded px-2 py-1.5 border border-emerald-500/10">
+                    <div className="text-[9px] text-slate-500 uppercase">TP3</div>
+                    <div className="tt-mono tt-text-up text-sm font-semibold break-all">{decision.takeProfit3}</div>
                   </div>
                 </div>
               </div>

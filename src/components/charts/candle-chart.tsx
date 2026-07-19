@@ -95,17 +95,16 @@ export function CandleChart({
   const linePath = (arr?: number[]) => {
     if (!arr || arr.length === 0) return "";
     const offset = candles.length - arr.length;
-    return arr
-      .map((v, i) => {
-        const idx = i + offset;
-        if (idx < 0 || !isFinite(v) || isNaN(v)) return "";
-        const px = x(idx);
-        const py = y(v);
-        if (!isFinite(px) || !isFinite(py) || isNaN(px) || isNaN(py)) return "";
-        return `${i === 0 ? "M" : "L"}${px.toFixed(1)},${py.toFixed(1)}`;
-      })
-      .filter(Boolean)
-      .join(" ");
+    const parts: string[] = [];
+    arr.forEach((v, i) => {
+      const idx = i + offset;
+      if (idx < 0 || !isFinite(v) || isNaN(v)) return;
+      const px = x(idx);
+      const py = y(v);
+      if (!isFinite(px) || !isFinite(py) || isNaN(px) || isNaN(py)) return;
+      parts.push(`${parts.length === 0 ? "M" : "L"}${px.toFixed(1)},${py.toFixed(1)}`);
+    });
+    return parts.join(" ");
   };
 
   const hoverCandle = hover !== null ? candles[hover] : null;

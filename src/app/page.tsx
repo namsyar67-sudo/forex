@@ -576,17 +576,23 @@ export default function TerminalPage() {
         ReAnalyze
       </button>
 
-      {/* Dialogs */}
+      {/* Dialogs — only render when open to avoid hydration issues */}
       <AlertsPanel open={alertsOpen} onOpenChange={setAlertsOpen} />
-      <Suspense fallback={<div />}>
-        <ReanalyzeDialog open={reanalyzeOpen} onOpenChange={setReanalyzeOpen} symbol={selectedSymbol} />
-      </Suspense>
-      <Suspense fallback={<div />}>
-        <SignalDetailDialog open={signalDetailOpen} onOpenChange={setSignalDetailOpen} signalId={signalDetailId} />
-      </Suspense>
-      <Suspense fallback={<div />}>
-        <AuditDetailDialog open={auditDetailOpen} onOpenChange={setAuditDetailOpen} auditId={auditDetailId} />
-      </Suspense>
+      {reanalyzeOpen && (
+        <Suspense fallback={<div />}>
+          <ReanalyzeDialog open={reanalyzeOpen} onOpenChange={setReanalyzeOpen} symbol={selectedSymbol} />
+        </Suspense>
+      )}
+      {signalDetailOpen && (
+        <Suspense fallback={<div />}>
+          <SignalDetailDialog open={signalDetailOpen} onOpenChange={setSignalDetailOpen} signalId={signalDetailId} />
+        </Suspense>
+      )}
+      {auditDetailOpen && (
+        <Suspense fallback={<div />}>
+          <AuditDetailDialog open={auditDetailOpen} onOpenChange={setAuditDetailOpen} auditId={auditDetailId} />
+        </Suspense>
+      )}
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       <OpenPositionDialog
         open={positionDialog.open}

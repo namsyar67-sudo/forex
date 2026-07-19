@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { correlationMatrix } from "@/lib/market/analysis";
-import { getAllInstruments } from "@/lib/market/client";
+import { getAllInstruments } from "@/lib/market/instruments";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

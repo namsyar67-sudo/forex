@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAllInstruments } from "@/lib/market/client";
+import { getAllInstruments } from "@/lib/market/instruments";
 
 export const dynamic = "force-dynamic";
 

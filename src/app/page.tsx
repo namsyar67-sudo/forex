@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect } from "react";
 import { useLiveQuotes } from "@/hooks/use-live-quotes";
 import { useTerminalStore } from "@/lib/store";
 import { DEFAULT_INSTRUMENTS } from "@/lib/market/instruments";
@@ -24,42 +24,42 @@ import { SettingsDialog } from "@/components/terminal/settings-dialog";
 import { OpenPositionDialog } from "@/components/terminal/open-position-dialog";
 import { RefreshCw } from "lucide-react";
 
-// V2 components — lazy-loaded for code splitting (reduces initial bundle & memory)
-const SmartMoneyPanel = lazy(() => import("@/components/terminal/v2/smart-money-panel"));
-const PriceActionPanel = lazy(() => import("@/components/terminal/v2/price-action-panel"));
-const MTFPanel = lazy(() => import("@/components/terminal/v2/mtf-panel"));
-const ProbabilityWheel = lazy(() => import("@/components/terminal/v2/probability-wheel"));
-const ScenariosPanel = lazy(() => import("@/components/terminal/v2/scenarios-panel"));
-const HeatmapPanel = lazy(() => import("@/components/terminal/v2/heatmap-panel"));
-const SessionAnalysisPanel = lazy(() => import("@/components/terminal/v2/session-analysis-panel"));
-const CorrelationGraphPanel = lazy(() => import("@/components/terminal/v2/correlation-graph-panel"));
-const DecisionTimelinePanel = lazy(() => import("@/components/terminal/v2/decision-timeline-panel"));
-const TradeJournalPanel = lazy(() => import("@/components/terminal/v2/trade-journal-panel"));
-const AIMemoryPanel = lazy(() => import("@/components/terminal/v2/ai-memory-panel"));
-const ReanalyzeDialog = lazy(() => import("@/components/terminal/v2/reanalyze-dialog"));
+// V2 components
+import { SmartMoneyPanel } from "@/components/terminal/v2/smart-money-panel";
+import { PriceActionPanel } from "@/components/terminal/v2/price-action-panel";
+import { MTFPanel } from "@/components/terminal/v2/mtf-panel";
+import { ProbabilityWheel } from "@/components/terminal/v2/probability-wheel";
+import { ScenariosPanel } from "@/components/terminal/v2/scenarios-panel";
+import { HeatmapPanel } from "@/components/terminal/v2/heatmap-panel";
+import { SessionAnalysisPanel } from "@/components/terminal/v2/session-analysis-panel";
+import { CorrelationGraphPanel } from "@/components/terminal/v2/correlation-graph-panel";
+import { DecisionTimelinePanel } from "@/components/terminal/v2/decision-timeline-panel";
+import { TradeJournalPanel } from "@/components/terminal/v2/trade-journal-panel";
+import { AIMemoryPanel } from "@/components/terminal/v2/ai-memory-panel";
+import { ReanalyzeDialog } from "@/components/terminal/v2/reanalyze-dialog";
 
-// V3 components — AI Trading Analyst
-const SignalPanel = lazy(() => import("@/components/terminal/v3/signal-panel"));
-const ScannerPanel = lazy(() => import("@/components/terminal/v3/scanner-panel"));
-const NotificationFeed = lazy(() => import("@/components/terminal/v3/notification-feed"));
-const TradeMonitorPanel = lazy(() => import("@/components/terminal/v3/trade-monitor-panel"));
-const SignalHistoryPanel = lazy(() => import("@/components/terminal/v3/signal-history-panel"));
-const SignalDetailDialog = lazy(() => import("@/components/terminal/v3/signal-detail-dialog"));
+// V3 components
+import { SignalPanel } from "@/components/terminal/v3/signal-panel";
+import { ScannerPanel } from "@/components/terminal/v3/scanner-panel";
+import { NotificationFeed } from "@/components/terminal/v3/notification-feed";
+import { TradeMonitorPanel } from "@/components/terminal/v3/trade-monitor-panel";
+import { SignalHistoryPanel } from "@/components/terminal/v3/signal-history-panel";
+import { SignalDetailDialog } from "@/components/terminal/v3/signal-detail-dialog";
 
-// V4 components — Multi-Agent AI
-const MultiAgentPanel = lazy(() => import("@/components/terminal/v4/multi-agent-panel"));
-const AgentConsensusPanel = lazy(() => import("@/components/terminal/v4/agent-consensus-panel"));
+// V4 components
+import { MultiAgentPanel } from "@/components/terminal/v4/multi-agent-panel";
+import { AgentConsensusPanel } from "@/components/terminal/v4/agent-consensus-panel";
 
-// V5 components — News Intelligence
-const NewsIntelligencePanel = lazy(() => import("@/components/terminal/v5/news-intelligence-panel"));
-const NewsSourcesPanel = lazy(() => import("@/components/terminal/v5/news-sources-panel"));
-const ScheduledNewsPanel = lazy(() => import("@/components/terminal/v5/scheduled-news-panel"));
+// V5 components
+import { NewsIntelligencePanel } from "@/components/terminal/v5/news-intelligence-panel";
+import { NewsSourcesPanel } from "@/components/terminal/v5/news-sources-panel";
+import { ScheduledNewsPanel } from "@/components/terminal/v5/scheduled-news-panel";
 
-// V6 components — Decision Audit & Latency
-const AuditPanel = lazy(() => import("@/components/terminal/v6/audit-panel"));
-const AuditDetailDialog = lazy(() => import("@/components/terminal/v6/audit-detail-dialog"));
-const LatencyPanel = lazy(() => import("@/components/terminal/v6/latency-panel"));
-const AIDecisionPanel = lazy(() => import("@/components/terminal/v6/ai-decision-panel"));
+// V6 components
+import { AuditPanel } from "@/components/terminal/v6/audit-panel";
+import { AuditDetailDialog } from "@/components/terminal/v6/audit-detail-dialog";
+import { LatencyPanel } from "@/components/terminal/v6/latency-panel";
+import { AIDecisionPanel } from "@/components/terminal/v6/ai-decision-panel";
 
 function PanelFallback({ label }: { label: string }) {
   return (
@@ -309,14 +309,14 @@ export default function TerminalPage() {
         {activeView === "audit" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
             <div className="lg:col-span-8 min-h-0">
-              <Suspense fallback={<PanelFallback label="Decision Audit" />}>
+              
                 <AuditPanel onSelectAudit={(id) => { setAuditDetailId(id); setAuditDetailOpen(true); }} />
-              </Suspense>
+              
             </div>
             <div className="lg:col-span-4 min-h-0">
-              <Suspense fallback={<PanelFallback label="Latency Monitor" />}>
+              
                 <LatencyPanel />
-              </Suspense>
+              
             </div>
           </div>
         )}
@@ -324,19 +324,19 @@ export default function TerminalPage() {
         {activeView === "newsintel" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
             <div className="lg:col-span-6 min-h-0">
-              <Suspense fallback={<PanelFallback label="News Intelligence" />}>
+              
                 <NewsIntelligencePanel />
-              </Suspense>
+              
             </div>
             <div className="lg:col-span-3 min-h-0">
-              <Suspense fallback={<PanelFallback label="Scheduled News" />}>
+              
                 <ScheduledNewsPanel />
-              </Suspense>
+              
             </div>
             <div className="lg:col-span-3 min-h-0">
-              <Suspense fallback={<PanelFallback label="News Sources" />}>
+              
                 <NewsSourcesPanel />
-              </Suspense>
+              
             </div>
           </div>
         )}
@@ -353,14 +353,14 @@ export default function TerminalPage() {
               />
             </div>
             <div className="lg:col-span-5 min-h-0">
-              <Suspense fallback={<PanelFallback label="AI Decision" />}>
+              
                 <AIDecisionPanel symbol={selectedSymbol} />
-              </Suspense>
+              
             </div>
             <div className="lg:col-span-3 min-h-0">
-              <Suspense fallback={<PanelFallback label="AI Chat" />}>
+              
                 <AIChat />
-              </Suspense>
+              
             </div>
           </div>
         )}
@@ -368,14 +368,14 @@ export default function TerminalPage() {
         {activeView === "agents" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
             <div className="lg:col-span-7 min-h-0">
-              <Suspense fallback={<PanelFallback label="Multi-Agent Decision" />}>
+              
                 <MultiAgentPanel symbol={selectedSymbol} />
-              </Suspense>
+              
             </div>
             <div className="lg:col-span-5 min-h-0">
-              <Suspense fallback={<PanelFallback label="Agent Consensus" />}>
+              
                 <AgentConsensusPanel onSelect={setSelectedSymbol} />
-              </Suspense>
+              
             </div>
           </div>
         )}
@@ -383,45 +383,45 @@ export default function TerminalPage() {
         {activeView === "analyst" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
             <div className="lg:col-span-5 min-h-0">
-              <Suspense fallback={<PanelFallback label="Market Scanner" />}>
+              
                 <ScannerPanel />
-              </Suspense>
+              
             </div>
             <div className="lg:col-span-4 min-h-0">
-              <Suspense fallback={<PanelFallback label="Active Signals" />}>
+              
                 <SignalPanel />
-              </Suspense>
+              
             </div>
             <div className="lg:col-span-3 min-h-0">
-              <Suspense fallback={<PanelFallback label="Notifications" />}>
+              
                 <NotificationFeed />
-              </Suspense>
+              
             </div>
           </div>
         )}
 
         {activeView === "signals" && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
-            <Suspense fallback={<PanelFallback label="Active Signals" />}>
+            
               <SignalPanel />
-            </Suspense>
-            <Suspense fallback={<PanelFallback label="Signal History" />}>
+            
+            
               <SignalHistoryPanel onSelectSignal={(id) => { setSignalDetailId(id); setSignalDetailOpen(true); }} />
-            </Suspense>
+            
           </div>
         )}
 
         {activeView === "monitor" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
             <div className="lg:col-span-8 min-h-0">
-              <Suspense fallback={<PanelFallback label="Trade Monitor" />}>
+              
                 <TradeMonitorPanel onSelectSignal={(id) => { setSignalDetailId(id); setSignalDetailOpen(true); }} />
-              </Suspense>
+              
             </div>
             <div className="lg:col-span-4 min-h-0">
-              <Suspense fallback={<PanelFallback label="Notifications" />}>
+              
                 <NotificationFeed />
-              </Suspense>
+              
             </div>
           </div>
         )}
@@ -463,20 +463,20 @@ export default function TerminalPage() {
         {activeView === "smartmoney" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
             <div className="lg:col-span-4 min-h-0">
-              <Suspense fallback={<PanelFallback label="Smart Money" />}>
+              
                 <SmartMoneyPanel symbol={selectedSymbol} />
-              </Suspense>
+              
             </div>
             <div className="lg:col-span-4 min-h-0">
-              <Suspense fallback={<PanelFallback label="Price Action" />}>
+              
                 <PriceActionPanel symbol={selectedSymbol} />
-              </Suspense>
+              
             </div>
             <div className="lg:col-span-4 min-h-0 flex flex-col gap-3">
               <div className="min-h-0">
-                <Suspense fallback={<PanelFallback label="Scenarios" />}>
+                
                   <ScenariosPanel symbol={selectedSymbol} />
-                </Suspense>
+                
               </div>
             </div>
           </div>
@@ -485,55 +485,55 @@ export default function TerminalPage() {
         {activeView === "mft" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
             <div className="lg:col-span-5 min-h-0">
-              <Suspense fallback={<PanelFallback label="MTF" />}>
+              
                 <MTFPanel symbol={selectedSymbol} />
-              </Suspense>
+              
             </div>
             <div className="lg:col-span-3 min-h-0 flex flex-col gap-3">
               <div className="flex items-center justify-center tt-panel rounded-xl p-4">
                 {probData && <ProbabilityWheel buy={probData.buy} sell={probData.sell} wait={probData.wait} size={180} />}
               </div>
               <div className="min-h-0 flex-1">
-                <Suspense fallback={<PanelFallback label="Timeline" />}>
+                
                   <DecisionTimelinePanel symbol={selectedSymbol} />
-                </Suspense>
+                
               </div>
             </div>
             <div className="lg:col-span-4 min-h-0">
-              <Suspense fallback={<PanelFallback label="AI Memory" />}>
+              
                 <AIMemoryPanel symbol={selectedSymbol} />
-              </Suspense>
+              
             </div>
           </div>
         )}
 
         {activeView === "journal" && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
-            <Suspense fallback={<PanelFallback label="Journal" />}>
+            
               <TradeJournalPanel />
-            </Suspense>
-            <Suspense fallback={<PanelFallback label="Timeline" />}>
+            
+            
               <DecisionTimelinePanel symbol={selectedSymbol} />
-            </Suspense>
+            
           </div>
         )}
 
         {activeView === "market" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
             <div className="lg:col-span-5 min-h-0">
-              <Suspense fallback={<PanelFallback label="Heatmap" />}>
+              
                 <HeatmapPanel />
-              </Suspense>
+              
             </div>
             <div className="lg:col-span-4 min-h-0">
-              <Suspense fallback={<PanelFallback label="Correlation Graph" />}>
+              
                 <CorrelationGraphPanel />
-              </Suspense>
+              
             </div>
             <div className="lg:col-span-3 min-h-0">
-              <Suspense fallback={<PanelFallback label="Sessions" />}>
+              
                 <SessionAnalysisPanel />
-              </Suspense>
+              
             </div>
           </div>
         )}
@@ -579,19 +579,19 @@ export default function TerminalPage() {
       {/* Dialogs — only render when open to avoid hydration issues */}
       <AlertsPanel open={alertsOpen} onOpenChange={setAlertsOpen} />
       {reanalyzeOpen && (
-        <Suspense fallback={<div />}>
+        
           <ReanalyzeDialog open={reanalyzeOpen} onOpenChange={setReanalyzeOpen} symbol={selectedSymbol} />
-        </Suspense>
+        
       )}
       {signalDetailOpen && (
-        <Suspense fallback={<div />}>
+        
           <SignalDetailDialog open={signalDetailOpen} onOpenChange={setSignalDetailOpen} signalId={signalDetailId} />
-        </Suspense>
+        
       )}
       {auditDetailOpen && (
-        <Suspense fallback={<div />}>
+        
           <AuditDetailDialog open={auditDetailOpen} onOpenChange={setAuditDetailOpen} auditId={auditDetailId} />
-        </Suspense>
+        
       )}
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       <OpenPositionDialog

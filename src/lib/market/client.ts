@@ -2,8 +2,12 @@
  * Market Data Client (server-side only)
  * Uses the in-process MarketEngine global singleton.
  * Vercel-compatible: no external service or port needed.
+ *
+ * IMPORTANT: This file imports the market engine (server-only).
+ * Client components should import from "@/lib/market/instruments" directly
+ * for static instrument data (getAllInstruments, INSTRUMENT_MAP).
  */
-import { INSTRUMENT_MAP, DEFAULT_INSTRUMENTS, type InstrumentDef } from "@/lib/market/instruments";
+import { INSTRUMENT_MAP, type InstrumentDef } from "@/lib/market/instruments";
 import { getMarketEngine, type Quote, type SessionInfo } from "@/lib/market/engine";
 import type { Candle } from "@/lib/indicators/indicators";
 
@@ -38,8 +42,4 @@ export async function getSession(): Promise<SessionInfo> {
 
 export function getInstrument(symbol: string): InstrumentDef | undefined {
   return INSTRUMENT_MAP[symbol];
-}
-
-export function getAllInstruments(): InstrumentDef[] {
-  return DEFAULT_INSTRUMENTS;
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { useLiveQuotes } from "@/hooks/use-live-quotes";
 import { useTerminalStore } from "@/lib/store";
-import { getAllInstruments } from "@/lib/market/client";
+import { getAllInstruments } from "@/lib/market/instruments";
 import type { InstrumentDef, PairAnalysis, AnalysisSummary, Quote, Alert } from "@/lib/types";
 
 import { TerminalHeader } from "@/components/terminal/terminal-header";

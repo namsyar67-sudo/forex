@@ -40,3 +40,7 @@ export const DEFAULT_INSTRUMENTS: InstrumentDef[] = [
 export const INSTRUMENT_MAP: Record<string, InstrumentDef> = Object.fromEntries(
   DEFAULT_INSTRUMENTS.map((i) => [i.symbol, i])
 );
+
+export function getAllInstruments(): InstrumentDef[] {
+  return DEFAULT_INSTRUMENTS;
+}

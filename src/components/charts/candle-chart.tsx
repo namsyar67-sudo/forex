@@ -98,8 +98,11 @@ export function CandleChart({
     return arr
       .map((v, i) => {
         const idx = i + offset;
-        if (idx < 0) return "";
-        return `${i === 0 ? "M" : "L"}${x(idx).toFixed(1)},${y(v).toFixed(1)}`;
+        if (idx < 0 || !isFinite(v) || isNaN(v)) return "";
+        const px = x(idx);
+        const py = y(v);
+        if (!isFinite(px) || !isFinite(py) || isNaN(px) || isNaN(py)) return "";
+        return `${i === 0 ? "M" : "L"}${px.toFixed(1)},${py.toFixed(1)}`;
       })
       .filter(Boolean)
       .join(" ");

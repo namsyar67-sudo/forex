@@ -578,13 +578,13 @@ export default function TerminalPage() {
 
       {/* Dialogs */}
       <AlertsPanel open={alertsOpen} onOpenChange={setAlertsOpen} />
-      <Suspense fallback={null}>
+      <Suspense fallback={<div />}>
         <ReanalyzeDialog open={reanalyzeOpen} onOpenChange={setReanalyzeOpen} symbol={selectedSymbol} />
       </Suspense>
-      <Suspense fallback={null}>
+      <Suspense fallback={<div />}>
         <SignalDetailDialog open={signalDetailOpen} onOpenChange={setSignalDetailOpen} signalId={signalDetailId} />
       </Suspense>
-      <Suspense fallback={null}>
+      <Suspense fallback={<div />}>
         <AuditDetailDialog open={auditDetailOpen} onOpenChange={setAuditDetailOpen} auditId={auditDetailId} />
       </Suspense>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />

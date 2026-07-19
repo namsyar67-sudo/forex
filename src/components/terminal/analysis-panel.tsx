@@ -156,7 +156,7 @@ export function AnalysisPanel({ symbol, analysis, summary, digits, onOpenPositio
           <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
             <TrendingUp className="w-3 h-3" /> Indicators
           </div>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
             <Indicator label="RSI(14)" value={analysis.rsi.toString()} tone={analysis.rsi < 30 ? "up" : analysis.rsi > 70 ? "down" : "neutral"} />
             <Indicator label="ADX" value={analysis.adx.toString()} tone={analysis.adx > 25 ? "accent" : "neutral"} />
             <Indicator label="ATR %" value={analysis.atrPct.toString()} tone="neutral" />

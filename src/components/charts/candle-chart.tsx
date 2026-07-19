@@ -27,16 +27,15 @@ export function CandleChart({
 }: CandleChartProps) {
   const [hover, setHover] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(800);
+  const [width, setWidth] = useState(600);
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      for (const e of entries) setWidth(e.contentRect.width);
-    });
+    const updateWidth = () => setWidth(Math.max(200, el.clientWidth));
+    const ro = new ResizeObserver(updateWidth);
     ro.observe(el);
-    setWidth(el.clientWidth);
+    updateWidth();
     return () => ro.disconnect();
   }, []);
 

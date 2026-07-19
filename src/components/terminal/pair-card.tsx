@@ -34,7 +34,7 @@ export function PairCard({ quote, analysis, name, category, selected, onClick }:
               {category}
             </span>
           </div>
-          <div className="text-[10px] text-slate-500 truncate max-w-[120px]">{name}</div>
+          <div className="text-[10px] text-slate-500 truncate">{name}</div>
         </div>
         {signal && (
           <span

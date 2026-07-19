@@ -267,7 +267,7 @@ export default function TerminalPage() {
         {activeView === "terminal" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
             {/* Left: Market grid */}
-            <div className="lg:col-span-3 min-h-0">
+            <div className="lg:col-span-3 min-h-0 min-w-0 overflow-hidden">
               <MarketGrid
                 quotes={quotes}
                 analysis={analysis}

@@ -26,19 +26,19 @@ export function PairCard({ quote, analysis, name, category, selected, onClick }:
       }`}
     >
       {/* Header */}
-      <div className="flex items-start justify-between mb-2">
-        <div>
+      <div className="flex items-start justify-between mb-2 gap-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-semibold tracking-tight">{quote.symbol}</span>
-            <span className={`text-[9px] uppercase tracking-wider ${categoryColor(category)}`}>
+            <span className="text-sm font-semibold tracking-tight shrink-0">{quote.symbol}</span>
+            <span className={`text-[9px] uppercase tracking-wider shrink-0 ${categoryColor(category)}`}>
               {category}
             </span>
           </div>
-          <div className="text-[10px] text-slate-500 truncate">{name}</div>
+          <div className="text-[10px] text-slate-500 truncate overflow-hidden">{name}</div>
         </div>
         {signal && (
           <span
-            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${signalClass(signal)}`}
+            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border shrink-0 ${signalClass(signal)}`}
           >
             {signalLabel(signal)}
           </span>

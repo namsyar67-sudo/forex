@@ -173,7 +173,7 @@ export function ChartPanel({ symbol, quote, analysis, name, category }: ChartPan
             Loading {symbol} {tf}…
           </div>
         ) : (
-          <div className="relative h-full">
+          <div className="relative h-full w-full overflow-hidden">
             <CandleChart
               candles={candles}
               digits={quote?.digits || 5}

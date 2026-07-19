@@ -267,7 +267,7 @@ export default function TerminalPage() {
         {activeView === "terminal" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
             {/* Left: Market grid */}
-            <div className="lg:col-span-3 min-h-0 min-w-0 overflow-hidden">
+            <div className="lg:col-span-3 min-h-0 min-w-0 overflow-hidden min-w-0 overflow-hidden">
               <MarketGrid
                 quotes={quotes}
                 analysis={analysis}
@@ -311,12 +311,12 @@ export default function TerminalPage() {
 
         {activeView === "audit" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
-            <div className="lg:col-span-8 min-h-0">
+            <div className="lg:col-span-8 min-h-0 min-w-0 overflow-hidden">
               
                 <AuditPanel onSelectAudit={(id) => { setAuditDetailId(id); setAuditDetailOpen(true); }} />
               
             </div>
-            <div className="lg:col-span-4 min-h-0">
+            <div className="lg:col-span-4 min-h-0 min-w-0 overflow-hidden">
               
                 <LatencyPanel />
               
@@ -326,17 +326,17 @@ export default function TerminalPage() {
 
         {activeView === "newsintel" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
-            <div className="lg:col-span-6 min-h-0">
+            <div className="lg:col-span-6 min-h-0 min-w-0 overflow-hidden">
               
                 <NewsIntelligencePanel />
               
             </div>
-            <div className="lg:col-span-3 min-h-0">
+            <div className="lg:col-span-3 min-h-0 min-w-0 overflow-hidden">
               
                 <ScheduledNewsPanel />
               
             </div>
-            <div className="lg:col-span-3 min-h-0">
+            <div className="lg:col-span-3 min-h-0 min-w-0 overflow-hidden">
               
                 <NewsSourcesPanel />
               
@@ -346,7 +346,7 @@ export default function TerminalPage() {
 
         {activeView === "aidecision" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
-            <div className="lg:col-span-4 min-h-0">
+            <div className="lg:col-span-4 min-h-0 min-w-0 overflow-hidden">
               <MarketGrid
                 quotes={quotes}
                 analysis={analysis}
@@ -355,7 +355,7 @@ export default function TerminalPage() {
                 onSelect={setSelectedSymbol}
               />
             </div>
-            <div className="lg:col-span-8 min-h-0">
+            <div className="lg:col-span-8 min-h-0 min-w-0 overflow-hidden">
               
                 <AIDecisionPanel symbol={selectedSymbol} />
               
@@ -365,12 +365,12 @@ export default function TerminalPage() {
 
         {activeView === "agents" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
-            <div className="lg:col-span-7 min-h-0">
+            <div className="lg:col-span-7 min-h-0 min-w-0 overflow-hidden">
               
                 <MultiAgentPanel symbol={selectedSymbol} />
               
             </div>
-            <div className="lg:col-span-5 min-h-0">
+            <div className="lg:col-span-5 min-h-0 min-w-0 overflow-hidden">
               
                 <AgentConsensusPanel onSelect={setSelectedSymbol} />
               
@@ -380,17 +380,17 @@ export default function TerminalPage() {
 
         {activeView === "analyst" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
-            <div className="lg:col-span-5 min-h-0">
+            <div className="lg:col-span-5 min-h-0 min-w-0 overflow-hidden">
               
                 <ScannerPanel />
               
             </div>
-            <div className="lg:col-span-4 min-h-0">
+            <div className="lg:col-span-4 min-h-0 min-w-0 overflow-hidden">
               
                 <SignalPanel />
               
             </div>
-            <div className="lg:col-span-3 min-h-0">
+            <div className="lg:col-span-3 min-h-0 min-w-0 overflow-hidden">
               
                 <NotificationFeed />
               
@@ -411,12 +411,12 @@ export default function TerminalPage() {
 
         {activeView === "monitor" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
-            <div className="lg:col-span-8 min-h-0">
+            <div className="lg:col-span-8 min-h-0 min-w-0 overflow-hidden">
               
                 <TradeMonitorPanel onSelectSignal={(id) => { setSignalDetailId(id); setSignalDetailOpen(true); }} />
               
             </div>
-            <div className="lg:col-span-4 min-h-0">
+            <div className="lg:col-span-4 min-h-0 min-w-0 overflow-hidden">
               
                 <NotificationFeed />
               
@@ -426,7 +426,7 @@ export default function TerminalPage() {
 
         {activeView === "analysis" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
-            <div className="lg:col-span-4 min-h-0">
+            <div className="lg:col-span-4 min-h-0 min-w-0 overflow-hidden">
               <AnalysisPanel
                 symbol={selectedSymbol}
                 analysis={selectedAnalysis}
@@ -435,10 +435,10 @@ export default function TerminalPage() {
                 onOpenPosition={handleOpenPosition}
               />
             </div>
-            <div className="lg:col-span-4 min-h-0">
+            <div className="lg:col-span-4 min-h-0 min-w-0 overflow-hidden">
               <BriefingPanel />
             </div>
-            <div className="lg:col-span-4 min-h-0">
+            <div className="lg:col-span-4 min-h-0 min-w-0 overflow-hidden">
               <CorrelationPanel />
             </div>
           </div>
@@ -460,17 +460,17 @@ export default function TerminalPage() {
 
         {activeView === "smartmoney" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
-            <div className="lg:col-span-4 min-h-0">
+            <div className="lg:col-span-4 min-h-0 min-w-0 overflow-hidden">
               
                 <SmartMoneyPanel symbol={selectedSymbol} />
               
             </div>
-            <div className="lg:col-span-4 min-h-0">
+            <div className="lg:col-span-4 min-h-0 min-w-0 overflow-hidden">
               
                 <PriceActionPanel symbol={selectedSymbol} />
               
             </div>
-            <div className="lg:col-span-4 min-h-0 flex flex-col gap-3">
+            <div className="lg:col-span-4 min-h-0 min-w-0 overflow-hidden flex flex-col gap-3">
               <div className="min-h-0">
                 
                   <ScenariosPanel symbol={selectedSymbol} />
@@ -482,12 +482,12 @@ export default function TerminalPage() {
 
         {activeView === "mft" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
-            <div className="lg:col-span-5 min-h-0">
+            <div className="lg:col-span-5 min-h-0 min-w-0 overflow-hidden">
               
                 <MTFPanel symbol={selectedSymbol} />
               
             </div>
-            <div className="lg:col-span-3 min-h-0 flex flex-col gap-3">
+            <div className="lg:col-span-3 min-h-0 min-w-0 overflow-hidden flex flex-col gap-3">
               <div className="flex items-center justify-center tt-panel rounded-xl p-4">
                 {probData && <ProbabilityWheel buy={probData.buy} sell={probData.sell} wait={probData.wait} size={180} />}
               </div>
@@ -497,7 +497,7 @@ export default function TerminalPage() {
                 
               </div>
             </div>
-            <div className="lg:col-span-4 min-h-0">
+            <div className="lg:col-span-4 min-h-0 min-w-0 overflow-hidden">
               
                 <AIMemoryPanel symbol={selectedSymbol} />
               
@@ -518,17 +518,17 @@ export default function TerminalPage() {
 
         {activeView === "market" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[calc(100vh-220px)] min-h-[500px]">
-            <div className="lg:col-span-5 min-h-0">
+            <div className="lg:col-span-5 min-h-0 min-w-0 overflow-hidden">
               
                 <HeatmapPanel />
               
             </div>
-            <div className="lg:col-span-4 min-h-0">
+            <div className="lg:col-span-4 min-h-0 min-w-0 overflow-hidden">
               
                 <CorrelationGraphPanel />
               
             </div>
-            <div className="lg:col-span-3 min-h-0">
+            <div className="lg:col-span-3 min-h-0 min-w-0 overflow-hidden">
               
                 <SessionAnalysisPanel />
               

@@ -71,7 +71,7 @@ export function MarketGrid({
 
       {/* Grid */}
       <div className="flex-1 overflow-y-auto tt-scroll p-2">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {filtered.map((inst) => {
             const q = quotes[inst.symbol];
             const a = analysis[inst.symbol];

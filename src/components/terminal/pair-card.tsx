@@ -19,75 +19,48 @@ export function PairCard({ quote, analysis, name, category, selected, onClick }:
   return (
     <button
       onClick={onClick}
-      className={`relative text-left rounded-lg border p-3 transition-all duration-150 group ${
+      className={`relative text-left rounded-lg border p-2.5 transition-all duration-150 group w-full overflow-hidden ${
         selected
           ? "tt-glass-strong border-white/20 ring-1 ring-emerald-500/30"
           : "tt-panel border-white/5 hover:border-white/15 hover:bg-white/[0.04]"
       }`}
     >
-      {/* Header */}
-      <div className="flex items-start justify-between mb-2 gap-1 min-w-0">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm font-semibold tracking-tight shrink-0">{quote.symbol}</span>
-            <span className={`text-[9px] uppercase tracking-wider shrink-0 ${categoryColor(category)}`}>
-              {category}
-            </span>
-          </div>
-          <div className="text-[10px] text-slate-500 truncate overflow-hidden">{name}</div>
-        </div>
+      {/* Row 1: Symbol + Category badge */}
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-sm font-semibold tracking-tight">{quote.symbol}</span>
+        <span className={`text-[8px] uppercase tracking-wider ${categoryColor(category)}`}>
+          {category}
+        </span>
+      </div>
+
+      {/* Row 2: Price */}
+      <div className="text-base font-semibold tt-mono tabular-nums truncate">
+        {formatPrice(quote.last, quote.digits)}
+      </div>
+
+      {/* Row 3: Change + Signal */}
+      <div className="flex items-center justify-between mt-0.5">
+        <span className={`text-[11px] tt-mono ${up ? "tt-text-up" : "tt-text-down"}`}>
+          {up ? "▲" : "▼"} {formatChange(quote.changePct)}
+        </span>
         {signal && (
-          <span
-            className={`px-1.5 py-0.5 rounded text-[9px] font-bold border shrink-0 ${signalClass(signal)}`}
-          >
+          <span className={`px-1 py-0.5 rounded text-[8px] font-bold border ${signalClass(signal)}`}>
             {signalLabel(signal)}
           </span>
         )}
       </div>
 
-      {/* Price — key changes on every tick to replay the flash animation */}
-      <div className="flex items-baseline gap-2 mb-1">
-        <span
-          key={quote.last}
-          className={`text-lg font-semibold tt-mono tabular-nums inline-block rounded px-0.5 -mx-0.5 ${
-            up ? "tt-flash-up" : "tt-flash-down"
-          }`}
-        >
-          {formatPrice(quote.last, quote.digits)}
-        </span>
-      </div>
-
-      {/* Change */}
-      <div className="flex items-center justify-between">
-        <span className={`text-xs tt-mono ${up ? "tt-text-up" : "tt-text-down"}`}>
-          {up ? "▲" : "▼"} {formatChange(quote.changePct)}
-        </span>
-        {analysis && (
-          <span className="text-[10px] text-slate-500 tt-mono">
-            RSI {analysis.rsi}
-          </span>
-        )}
-      </div>
-
-      {/* Mini indicator row */}
+      {/* Row 4: Trend + Conf (if analysis) */}
       {analysis && (
-        <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between text-[10px]">
+        <div className="mt-1.5 pt-1.5 border-t border-white/5 flex items-center justify-between text-[9px]">
           <span className="text-slate-500">
-            Trend:{" "}
-            <span
-              className={
-                analysis.trend === "Bullish"
-                  ? "tt-text-up"
-                  : analysis.trend === "Bearish"
-                  ? "tt-text-down"
-                  : "text-slate-400"
-              }
-            >
-              {analysis.trend}
-            </span>
+            <span className={
+              analysis.trend === "Bullish" ? "tt-text-up" :
+              analysis.trend === "Bearish" ? "tt-text-down" : "text-slate-400"
+            }>{analysis.trend}</span>
           </span>
           <span className="text-slate-500">
-            Conf <span className="text-slate-300">{analysis.confidence}%</span>
+            RSI <span className="text-slate-300 tt-mono">{analysis.rsi}</span>
           </span>
         </div>
       )}

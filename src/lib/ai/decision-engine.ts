@@ -66,21 +66,11 @@ export async function getAIDecision(symbol: string): Promise<AIDecision | null> 
   const [newsResult, marketResult] = await Promise.all([
     // AI Call #1: Gemini 3.5 Flash — collect news AND analyze sentiment in ONE call
     yepChat([
-      { role: "assistant", content: "You are a financial news analyst. Search for recent news and analyze sentiment. Output JSON only." },
-      { role: "user", content: `Find ${8} recent news headlines about "${name} price" and "${category} market today".
+      { role: "assistant", content: "You are a financial news analyst. Output JSON only." },
+      { role: "user", content: `Find 5 recent news about "${name}" and "${category}". Classify each as bullish/bearish/neutral for ${sym}.
 
-For EACH headline, classify: is it bullish, bearish, or neutral for ${sym}?
-
-Respond JSON:
-{
-  "items": [{"title":"...","source":"...","sentiment":"bullish|bearish|neutral","impact":"high|medium|low","summary":"1 line"}],
-  "overall": "bullish|bearish|neutral",
-  "score": -100 to 100,
-  "bullishCount": N,
-  "bearishCount": N,
-  "summary": "2-3 sentence overall assessment of news for ${sym}"
-}` },
-    ], "google/gemini-3.5-flash", 15000).catch(() => null),
+JSON: {"items":[{"title":"...","source":"...","sentiment":"bullish|bearish|neutral","impact":"high|medium|low","summary":"..."}],"overall":"bullish|bearish|neutral","score":-100 to 100,"bullishCount":N,"bearishCount":N,"summary":"2 sentences"}` },
+    ], "google/gemini-3.5-flash", 12000).catch(() => null),
 
     // Computation: chart + liquidity + MTF (no AI)
     (async () => {
@@ -90,7 +80,7 @@ Respond JSON:
       const [smc, pa, mtf] = await Promise.all([
         candles.length >= 30 ? analyzeSmartMoney(sym, "h1", candles) : null,
         candles.length >= 10 ? analyzePriceAction(sym, "h1", candles) : null,
-        analyzeMultiTimeframe(sym).catch(() => null),
+        null, // Skip MTF on Vercel (too slow) — use trend from analysis instead
       ]);
       return { analysis, smc, pa, mtf, duration: Date.now() - marketStart };
     })(),
@@ -191,7 +181,7 @@ Respond JSON:
     const raw = await yepDecisionChat([
       { role: "assistant", content: "You are a Chief AI Trading Analyst. Review all reports and decide. JSON only." },
       { role: "user", content: prompt },
-    ], 20000);
+    ], 15000);
 
     pipelineSteps.push({ step: "2. Chief Decision (GLM-5.2)", status: "done", duration: Date.now() - chiefStart });
     const match = raw.match(/\{[\s\S]*\}/);

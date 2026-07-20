@@ -46,7 +46,7 @@ export function AIDecisionPanel({ symbol }: Props) {
     setError(null);
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 25000);
+      const timer = setTimeout(() => controller.abort(), 55000);
       const res = await fetch(`/api/ai-decision/${symbol}`, { signal: controller.signal });
       clearTimeout(timer);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -64,7 +64,7 @@ export function AIDecisionPanel({ symbol }: Props) {
       setDecision(data.decision);
     } catch (e: any) {
       if (id !== fetchRef.current) return;
-      setError(e.name === "AbortError" ? "Request timed out (25s). AI may be processing — try again." : (e.message || "Failed to get AI decision"));
+      setError(e.name === "AbortError" ? "Request timed out (55s). AI may be processing — try again." : (e.message || "Failed to get AI decision"));
     } finally {
       if (id === fetchRef.current) setLoading(false);
     }

@@ -1,218 +1,22 @@
 /**
- * AI Decision Engine
- * The AI reads REAL news from the web, analyzes the market, liquidity, chart,
- * and news — then makes the final trading decision.
- *
- * This is the PRIMARY decision-maker (not just an interpreter).
- * The quant analysis feeds data TO the AI; the AI decides.
+ * AI Decision Engine — YepAPI Powered
+ * Uses Gemini 3.5 Flash for news + GLM-5.2 for decisions
+ * Sequential pipeline with key rotation
  */
-import ZAI from "z-ai-web-dev-sdk";
-import { getAllQuotes, getCandles } from "@/lib/market/client";
-import { analyzePair, buildAnalysisSummary } from "@/lib/market/analysis";
+import { yepChat, yepNewsChat, yepDecisionChat, yepWebSearch, isYepAPIConfigured } from "./yepapi-client";
+import { analyzePair } from "@/lib/market/analysis";
+import { getCandles } from "@/lib/market/client";
 import { analyzeSmartMoney } from "@/lib/smart-money/engine";
 import { analyzeMultiTimeframe } from "@/lib/multi-timeframe/engine";
-import { getOrCompute } from "@/lib/cache";
+import { analyzePriceAction } from "@/lib/price-action/engine";
 
-declare global {
-  var __zaiDecision: any | undefined;
-}
+const WAIT_BETWEEN_STEPS = 3000;
+function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
-async function getAI() {
-  if (!global.__zaiDecision) {
-    try {
-      global.__zaiDecision = await ZAI.create();
-    } catch {
-      const config = {
-        baseUrl: process.env.ZAI_BASE_URL || "https://internal-api.z.ai/v1",
-        apiKey: process.env.ZAI_API_KEY || "Z.ai",
-        token: process.env.ZAI_TOKEN || "",
-        chatId: process.env.ZAI_CHAT_ID || "",
-        userId: process.env.ZAI_USER_ID || "",
-      };
-      global.__zaiDecision = new (ZAI as any)(config);
-    }
-  }
-  return global.__zaiDecision;
-}
-
-// ---------- Step 1: Search the web for REAL news ----------
-export interface RealNewsItem {
-  title: string;
-  snippet: string;
-  url: string;
-  source: string;
-  date: string;
-}
-
-export async function searchRealNews(symbol: string, category: string): Promise<RealNewsItem[]> {
-  const zai = await getAI();
-
-  // Build search queries based on symbol category
-  const queries = buildNewsQueries(symbol, category);
-  const allResults: RealNewsItem[] = [];
-
-  for (const query of queries.slice(0, 2)) {
-    try {
-      const results = await zai.functions.invoke("web_search", {
-        query,
-        num: 5,
-        recency_days: 1,
-      });
-
-      if (Array.isArray(results)) {
-        for (const r of results) {
-          allResults.push({
-            title: r.name || "",
-            snippet: r.snippet || "",
-            url: r.url || "",
-            source: r.host_name || "",
-            date: r.date || "",
-          });
-        }
-      }
-    } catch {
-      // skip failed searches
-    }
-  }
-
-  // Deduplicate by title
-  const seen = new Set<string>();
-  return allResults.filter((item) => {
-    const key = item.title.toLowerCase().substring(0, 50);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  }).slice(0, 8);
-}
-
-function buildNewsQueries(symbol: string, category: string): string[] {
-  const queries: string[] = [];
-  const baseName = symbol.replace("USD", "").replace("EUR", "").replace("GBP", "");
-
-  if (category === "forex") {
-    queries.push(`${symbol} forex news today`);
-    queries.push(`${baseName} USD trading analysis today`);
-  } else if (category === "metals") {
-    queries.push(`${symbol === "XAUUSD" ? "Gold" : "Silver"} price news today`);
-    queries.push(`${symbol === "XAUUSD" ? "Gold" : "Silver"} market analysis`);
-  } else if (category === "crypto") {
-    queries.push(`${baseName} crypto news today`);
-    queries.push(`${baseName} price prediction analysis`);
-  } else if (category === "indices") {
-    const name = symbol === "NAS100" ? "Nasdaq" : symbol === "US30" ? "Dow Jones" : symbol === "SPX500" ? "S&P 500" : symbol === "GER40" ? "DAX" : "FTSE";
-    queries.push(`${name} index news today`);
-    queries.push(`${name} market analysis`);
-  }
-
-  // Add macro news
-  queries.push("USD dollar news today forex");
-  queries.push("Federal Reserve interest rate news");
-
-  return queries;
-}
-
-// ---------- Step 2: Gather all market data ----------
-export interface MarketDataSnapshot {
-  symbol: string;
-  price: number;
-  changePct: number;
-  digits: number;
-  // Technical indicators
-  rsi: number;
-  adx: number;
-  macdHist: number;
-  atr: number;
-  atrPct: number;
-  trend: string;
-  signal: string;
-  signalScore: number;
-  ema20: number;
-  ema50: number;
-  ema200: number;
-  bbUpper: number;
-  bbLower: number;
-  support: number;
-  resistance: number;
-  // Smart Money
-  smcBias: string;
-  smcStructure: string;
-  smcBiasStrength: number;
-  activeOrderBlocks: number;
-  activeFVGs: number;
-  liquiditySwept: number;
-  premiumDiscount: string;
-  // Multi-timeframe
-  mtfAlignment: number;
-  mtfDecision: string;
-  mtfTrendBias: string;
-  // Session & liquidity
-  session: string;
-  liquidity: string;
-  volatility: string;
-  riskScore: number;
-  spreadPips: number;
-}
-
-export async function gatherMarketData(symbol: string): Promise<MarketDataSnapshot | null> {
-  const analysis = await getOrCompute(`analysis:${symbol}`, 10000, () => analyzePair(symbol));
-  if (!analysis) return null;
-
-  let smc: any = null;
-  let mtf: any = null;
-  try {
-    const { candles } = await getCandles(symbol, "h1", 120);
-    if (candles.length >= 30) {
-      smc = analyzeSmartMoney(symbol, "h1", candles);
-    }
-    mtf = await getOrCompute(`mtf:${symbol}`, 30000, () => analyzeMultiTimeframe(symbol));
-  } catch { /* skip */ }
-
-  const pd = smc?.premiumDiscount?.position ?? 0.5;
-  const pdLabel = pd < 0.35 ? "DISCOUNT (buy zone)" : pd > 0.65 ? "PREMIUM (sell zone)" : "EQUILIBRIUM";
-
-  return {
-    symbol: analysis.symbol,
-    price: analysis.price,
-    changePct: analysis.changePct,
-    digits: analysis.quote.digits,
-    rsi: analysis.rsi,
-    adx: analysis.adx,
-    macdHist: analysis.macdHist,
-    atr: analysis.atr,
-    atrPct: analysis.atrPct,
-    trend: analysis.trend,
-    signal: analysis.signal,
-    signalScore: analysis.signalScore,
-    ema20: analysis.ema20,
-    ema50: analysis.ema50,
-    ema200: analysis.ema200,
-    bbUpper: analysis.bbUpper,
-    bbLower: analysis.bbLower,
-    support: analysis.support,
-    resistance: analysis.resistance,
-    smcBias: smc?.summary?.bias ?? "neutral",
-    smcStructure: smc?.summary?.marketStructure ?? "unknown",
-    smcBiasStrength: smc?.summary?.biasStrength ?? 0,
-    activeOrderBlocks: smc?.summary?.activeOrderBlocks ?? 0,
-    activeFVGs: smc?.summary?.activeFVGs ?? 0,
-    liquiditySwept: smc?.summary?.liquiditySwept ?? 0,
-    premiumDiscount: pdLabel,
-    mtfAlignment: mtf?.overall?.alignment ?? 0,
-    mtfDecision: mtf?.overall?.decision ?? "unknown",
-    mtfTrendBias: mtf?.overall?.trendBias ?? "neutral",
-    session: analysis.session,
-    liquidity: analysis.liquidity,
-    volatility: analysis.volatility,
-    riskScore: analysis.riskScore,
-    spreadPips: analysis.spreadPips,
-  };
-}
-
-// ---------- Step 3: AI makes the decision ----------
 export interface AIDecision {
   symbol: string;
   decision: "BUY" | "SELL" | "WAIT" | "HOLD";
-  confidence: number; // 0..100
+  confidence: number;
   direction: "long" | "short" | "neutral";
   entryPrice: number;
   stopLoss: number;
@@ -220,8 +24,7 @@ export interface AIDecision {
   takeProfit2: number;
   takeProfit3: number;
   riskReward: number;
-  timeframe: string; // primary analysis timeframe
-  // AI's reasoning
+  timeframe: string;
   reasoning: string;
   newsAnalysis: string;
   marketAnalysis: string;
@@ -229,288 +32,299 @@ export interface AIDecision {
   chartAnalysis: string;
   keyFactors: string[];
   riskWarnings: string[];
-  // What news the AI read
-  newsSourcesRead: { title: string; source: string; url: string }[];
-  // Market status
-  marketStatus: "open" | "closed" | "weekend" | "holiday";
-  marketStatusReason: string;
-  // Timestamps
+  newsSourcesRead: { title: string; source: string; sentiment: string }[];
+  overallSentiment: string;
+  sentimentScore: number;
+  marketStatus?: string;
+  marketStatusReason?: string;
+  pipelineSteps: { step: string; status: "done" | "skipped" | "failed"; duration: number }[];
   timestamp: number;
 }
 
-// ---------- Market hours check ----------
 export function getMarketStatus(symbol: string): { status: "open" | "closed" | "weekend" | "holiday"; reason: string } {
   const now = new Date();
-  const day = now.getUTCDay(); // 0=Sunday, 6=Saturday
+  const day = now.getUTCDay();
   const hour = now.getUTCHours();
+  if (symbol.includes("BTC") || symbol.includes("ETH")) return { status: "open", reason: "Crypto 24/7." };
+  if (day === 6) return { status: "weekend", reason: "Saturday — closed." };
+  if (day === 0 && hour < 22) return { status: "weekend", reason: "Sunday — closed until 22:00 UTC." };
+  if (day === 5 && hour >= 22) return { status: "closed", reason: "Friday night — closed." };
+  return { status: "open", reason: "Markets open." };
+}
 
-  // Crypto is ALWAYS open (24/7/365)
-  if (symbol.includes("BTC") || symbol.includes("ETH")) {
-    return { status: "open", reason: "Crypto markets are open 24/7 including weekends and holidays." };
-  }
+// Step 1: Collect news via YepAPI (Gemini 3.5 Flash)
+async function step1_CollectNews(symbol: string, category: string) {
+  const start = Date.now();
+  const name = symbol === "XAUUSD" ? "Gold" : symbol === "BTCUSD" ? "Bitcoin" :
+    symbol === "ETHUSD" ? "Ethereum" : symbol === "NAS100" ? "Nasdaq" :
+    symbol === "US30" ? "Dow Jones" : symbol === "SPX500" ? "S&P 500" : symbol;
 
-  // Saturday: all traditional markets closed
-  if (day === 6) {
-    return { status: "weekend", reason: "Saturday — Forex, stocks, and most markets are closed. Markets reopen Sunday evening (UTC) / Monday morning." };
-  }
+  const results = await Promise.all([
+    yepWebSearch(`${name} price news today`, 5),
+    yepWebSearch(category === "forex" ? "USD forex news today" : `${name} market analysis`, 4),
+  ]);
 
-  // Sunday: Forex opens at 22:00 UTC (Sydney)
-  if (day === 0) {
-    if (hour < 22) {
-      return { status: "weekend", reason: "Sunday before 22:00 UTC — Forex market is still closed. Opens at 22:00 UTC (Sydney session)." };
+  const all = [...results[0], ...results[1]].filter(Boolean);
+  const seen = new Set<string>();
+  const items = all.filter((r: any) => {
+    const key = (r.title || r.name || "").toLowerCase().substring(0, 50);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 12).map((r: any) => ({
+    title: r.title || r.name || "",
+    snippet: (r.snippet || "").substring(0, 120),
+    source: r.source || r.host_name || "web",
+    url: r.url || "",
+  }));
+
+  return { items, duration: Date.now() - start };
+}
+
+// Step 2: Analyze news (Gemini 3.5 Flash)
+async function step2_AnalyzeNews(news: any[], symbol: string) {
+  const start = Date.now();
+  if (news.length === 0) return {
+    sentiment: "neutral", score: 0, bullish: 0, bearish: 0, neutral: 0,
+    analysis: "No news available.", itemAnalysis: [], duration: Date.now() - start,
+  };
+
+  const newsText = news.map((n, i) => `${i+1}. ${n.title} (${n.source})\n   ${n.snippet}`).join("\n");
+  try {
+    const raw = await yepNewsChat([
+      { role: "assistant", content: "You are a financial news analyst. Output JSON only." },
+      { role: "user", content: `Analyze these ${news.length} news items for ${symbol}:\n${newsText}\n\nRespond JSON:\n{"items":[{"title":"...","sentiment":"bullish|bearish|neutral","impact":"high|medium|low","summary":"1 line"}],"overall":"bullish|bearish|neutral","score":-100 to 100,"bullishCount":N,"bearishCount":N,"summary":"2-3 sentences"}` },
+    ], 15000);
+
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (match) {
+      const p = JSON.parse(match[0]);
+      const items = p.items || [];
+      return {
+        sentiment: p.overall || "neutral", score: p.score || 0,
+        bullish: p.bullishCount || 0, bearish: p.bearishCount || 0,
+        neutral: items.length - (p.bullishCount || 0) - (p.bearishCount || 0),
+        analysis: p.summary || "Analysis incomplete.",
+        itemAnalysis: items.map((it: any) => ({ title: it.title, sentiment: it.sentiment || "neutral", impact: it.impact || "low", summary: it.summary || "" })),
+        duration: Date.now() - start,
+      };
     }
-    return { status: "open", reason: "Sunday after 22:00 UTC — Sydney session starting. Low liquidity expected." };
-  }
+  } catch {}
 
-  // Friday after 22:00 UTC: Forex closed
-  if (day === 5 && hour >= 22) {
-    return { status: "closed", reason: "Friday after 22:00 UTC — Forex market closed for the weekend." };
-  }
+  // Heuristic fallback
+  const bull = ["surge","rally","gain","rise","bullish","upgrade","beat","strong","positive","up"];
+  const bear = ["drop","fall","decline","bearish","downgrade","miss","weak","negative","down","crash","sell"];
+  let b = 0, r2 = 0;
+  const itemAnalysis = news.map(n => {
+    const t = `${n.title} ${n.snippet}`.toLowerCase();
+    let s = 0; bull.forEach(w => { if (t.includes(w)) s++; });
+    bear.forEach(w => { if (t.includes(w)) s--; });
+    const sent = s > 0 ? "bullish" : s < 0 ? "bearish" : "neutral";
+    if (sent === "bullish") b++; else if (sent === "bearish") r2++;
+    return { title: n.title, sentiment: sent, impact: "medium", summary: n.snippet.substring(0, 60) };
+  });
+  const score = (b - r2) * (100 / Math.max(news.length, 1));
+  return {
+    sentiment: score > 0 ? "bullish" : score < 0 ? "bearish" : "neutral",
+    score: Math.max(-100, Math.min(100, score)),
+    bullish: b, bearish: r2, neutral: news.length - b - r2,
+    analysis: `Heuristic: ${b} bullish, ${r2} bearish, ${news.length - b - r2} neutral.`,
+    itemAnalysis, duration: Date.now() - start,
+  };
+}
 
-  return { status: "open", reason: "Markets are open for trading." };
+// Step 3: Chart analysis (computation only)
+async function step3_AnalyzeChart(symbol: string) {
+  const start = Date.now();
+  const [analysis, candlesResult] = await Promise.all([analyzePair(symbol), getCandles(symbol, "h1", 100)]);
+  if (!analysis) return null;
+  const { candles } = candlesResult;
+  const [smc, pa] = await Promise.all([
+    candles.length >= 30 ? analyzeSmartMoney(symbol, "h1", candles) : null,
+    candles.length >= 10 ? analyzePriceAction(symbol, "h1", candles) : null,
+  ]);
+  return { analysis, smc, pa, duration: Date.now() - start };
+}
+
+// Step 4: Liquidity + MTF
+async function step4_AnalyzeLiquidity(symbol: string, analysis: any) {
+  const start = Date.now();
+  const mtf = await analyzeMultiTimeframe(symbol).catch(() => null);
+  return {
+    mtf,
+    liquidity: { session: analysis.session, liquidity: analysis.liquidity, volatility: analysis.volatility, spreadPips: analysis.spreadPips },
+    duration: Date.now() - start,
+  };
+}
+
+// Step 5: Chief Decision (GLM-5.2)
+async function step5_ChiefDecision(symbol: string, news: any[], na: any, chart: any, liq: any) {
+  const start = Date.now();
+  const a = chart.analysis; const smc = chart.smc; const pa = chart.pa; const mtf = liq.mtf; const l = liq.liquidity;
+  const pd = smc?.premiumDiscount?.position ?? 0.5;
+  const pdL = pd < 0.35 ? "DISCOUNT" : pd > 0.65 ? "PREMIUM" : "EQUILIBRIUM";
+  const newsD = na.itemAnalysis.length > 0 ? na.itemAnalysis.slice(0, 8).map((n: any, i: number) => `[${i+1}] ${n.sentiment.toUpperCase()} (${n.impact}) — ${n.title}`).join("\n") : "No news.";
+
+  const prompt = `You are the Chief AI Analyst. 4 teams analyzed ${symbol}. Make the FINAL decision.
+
+=== NEWS ===
+Overall: ${na.sentiment} (score: ${na.score}/100)
+Bullish: ${na.bullish} | Bearish: ${na.bearish} | Neutral: ${na.neutral}
+${na.analysis}
+${newsD}
+
+=== TECHNICAL (H1) ===
+Trend: ${a.trend} (ADX ${a.adx}) | RSI: ${a.rsi} | MACD: ${a.macdHist > 0 ? "Bullish" : "Bearish"}
+Signal: ${a.signal} (${a.signalScore}/100)
+EMA20: ${a.ema20} | EMA50: ${a.ema50} | EMA200: ${a.ema200}
+Support: ${a.support} | Resistance: ${a.resistance}
+
+=== SMART MONEY ===
+${smc ? `Bias: ${smc.summary.bias} (${(smc.summary.biasStrength * 100).toFixed(0)}%)
+Structure: ${smc.summary.marketStructure} | OBs: ${smc.summary.activeOrderBlocks} | FVGs: ${smc.summary.activeFVGs}
+Sweeps: ${smc.summary.liquiditySwept} | Zone: ${pdL}
+BOS: ${smc.summary.lastBOS?.type || "none"} | CHOCH: ${smc.summary.lastCHOCH?.direction || "none"}
+${pa ? `PA: ${pa.patternCount} patterns, ${pa.netBias}. ${pa.latestPattern ? "Latest: " + pa.latestPattern.type.replace(/_/g," ") : ""}` : ""}` : "N/A"}
+
+=== LIQUIDITY & MTF ===
+Session: ${l.session} | ${l.liquidity} | ${l.volatility} | ${l.spreadPips} pips
+${mtf ? `MTF: ${mtf.overall.alignment}% (${mtf.overall.trendBias}) — ${mtf.overall.decision}` : "N/A"}
+
+Price: ${a.price}
+
+Respond JSON:
+{"decision":"BUY|SELL|WAIT|HOLD","confidence":0-100,"direction":"long|short|neutral","reasoning":"4-6 sentences","keyFactors":["f1","f2","f3","f4","f5"],"riskWarnings":["w1","w2"]}`;
+
+  try {
+    const raw = await yepDecisionChat([
+      { role: "assistant", content: "You are a Chief AI Trading Analyst. Review all reports and decide. JSON only." },
+      { role: "user", content: prompt },
+    ], 20000);
+
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (match) {
+      const p = JSON.parse(match[0]);
+      const atr = a.atr || a.price * 0.005;
+      const isLong = p.direction === "long";
+      const entry = a.price;
+      const sl = isLong ? entry - atr*1.5 : entry + atr*1.5;
+      const tp1 = isLong ? entry + atr*1.5 : entry - atr*1.5;
+      const tp2 = isLong ? entry + atr*3 : entry - atr*3;
+      const tp3 = isLong ? entry + atr*5 : entry - atr*5;
+      const rr = Math.abs(tp3-entry)/Math.abs(entry-sl);
+      return { ...p, entry, sl, tp1, tp2, tp3, rr: Math.round(rr*10)/10, duration: Date.now()-start };
+    }
+  } catch {}
+  return null;
 }
 
 export async function getAIDecision(symbol: string): Promise<AIDecision | null> {
   const sym = symbol.toUpperCase();
-
-  // Check market status first
   const marketStatus = getMarketStatus(sym);
+  const category = sym.includes("XAU") || sym.includes("XAG") ? "metals" : sym.includes("BTC") || sym.includes("ETH") ? "crypto" : sym.includes("USD") && !sym.startsWith("X") ? "forex" : "indices";
+  const pipelineSteps: AIDecision["pipelineSteps"] = [];
 
-  // Determine category for news search
-  const category = sym.includes("XAU") || sym.includes("XAG") ? "metals" :
-                   sym.includes("BTC") || sym.includes("ETH") ? "crypto" :
-                   sym.includes("USD") && !sym.startsWith("X") ? "forex" : "indices";
+  // Step 1: News
+  const s1 = await step1_CollectNews(sym, category);
+  pipelineSteps.push({ step: "1. News Collection", status: s1.items.length > 0 ? "done" : "failed", duration: s1.duration });
+  await sleep(WAIT_BETWEEN_STEPS);
 
-  // Search for REAL news (always, even when closed — for Monday prep)
-  const news = await getOrCompute(`realnews:${sym}`, 60000, () => searchRealNews(sym, category));
+  // Step 2: News Analysis
+  const s2 = await step2_AnalyzeNews(s1.items, sym);
+  pipelineSteps.push({ step: "2. News Analysis", status: "done", duration: s2.duration });
+  await sleep(WAIT_BETWEEN_STEPS);
 
-  // If market is closed/weekend, return WAIT immediately
+  // Step 3: Chart
+  const s3 = await step3_AnalyzeChart(sym);
+  if (!s3) return null;
+  pipelineSteps.push({ step: "3. Chart Analysis", status: "done", duration: s3.duration });
+
+  // Step 4: Liquidity
+  const s4 = await step4_AnalyzeLiquidity(sym, s3.analysis);
+  pipelineSteps.push({ step: "4. Liquidity & MTF", status: "done", duration: s4.duration });
+  await sleep(WAIT_BETWEEN_STEPS);
+
+  // Market closed → WAIT
   if (marketStatus.status !== "open") {
-    const marketData = await gatherMarketData(sym);
-    return {
-      symbol: sym,
-      decision: "WAIT",
-      confidence: 90,
-      direction: "neutral",
-      entryPrice: marketData?.price || 0,
-      stopLoss: 0,
-      takeProfit1: 0,
-      takeProfit2: 0,
-      takeProfit3: 0,
-      riskReward: 0,
-      timeframe: "H1 (Primary) + M15 + H4 + D1 (Multi-Timeframe Confirmation)",
-      reasoning: `Market is currently ${marketStatus.status === "weekend" ? "closed for the weekend" : "closed"}. ${marketStatus.reason} No trading decisions are made when markets are closed. The AI will resume analysis when markets reopen.`,
-      newsAnalysis: news.length > 0
-        ? `${news.length} news items were found. Review them for Monday's session preparation. Key headlines:\n${news.slice(0, 3).map(n => `- ${n.title}`).join("\n")}`
-        : "No significant news found during weekend.",
-      marketAnalysis: marketData
-        ? `Last known price: ${marketData.price}. Trend: ${marketData.trend}. RSI: ${marketData.rsi}. These are Friday's closing levels — they may gap on Monday open.`
-        : "Market data unavailable.",
-      liquidityAnalysis: "No liquidity during closed markets. Expect gaps and low liquidity at Sunday/Monday open.",
-      chartAnalysis: marketData
-        ? `Friday's structure: ${marketData.smcBias} bias, ${marketData.activeOrderBlocks} OBs, ${marketData.activeFVGs} FVGs. These levels may be tested on Monday.`
-        : "Chart data unavailable.",
-      keyFactors: [
-        `Market ${marketStatus.status}`,
-        "Weekend — no live trading",
-        news.length > 0 ? `${news.length} news items for review` : "No news",
-      ],
-      riskWarnings: [
-        "Do not trade when markets are closed",
-        "Watch for Monday morning gaps",
-        "Review weekend news for Monday preparation",
-      ],
-      newsSourcesRead: news.map((n) => ({ title: n.title, source: n.source, url: n.url })),
-      marketStatus: marketStatus.status,
-      marketStatusReason: marketStatus.reason,
-      timestamp: Date.now(),
-    };
+    pipelineSteps.push({ step: "5. Chief Decision", status: "skipped", duration: 0 });
+    return buildResult(sym, "WAIT", 90, "neutral", s3, s4, s2, s1.items, marketStatus, pipelineSteps,
+      `Market ${marketStatus.status}. ${marketStatus.reason} No trading when closed.`,
+      s2.analysis, `${s3.analysis.trend} trend, RSI ${s3.analysis.rsi}.`,
+      `${s4.liquidity.session}. ${s4.liquidity.liquidity}.`, s3.smc ? `SMC: ${s3.smc.summary.bias}` : "N/A",
+      [`Market ${marketStatus.status}`, `${s1.items.length} news`, s2.sentiment], ["Do not trade when closed"], 0, 0, 0, 0, 0, 0);
   }
 
-  // Step 2: Gather all market data
-  const marketData = await gatherMarketData(sym);
-  if (!marketData) return null;
+  // Step 5: Chief Decision
+  const chief = await step5_ChiefDecision(sym, s1.items, s2, s3, s4);
+  const a = s3.analysis; const smc = s3.smc; const pa = s3.pa; const mtf = s4.mtf; const liq = s4.liquidity; const na = s2;
+  const pd = smc?.premiumDiscount?.position ?? 0.5;
+  const pdL = pd < 0.35 ? "DISCOUNT (buy zone)" : pd > 0.65 ? "PREMIUM (sell zone)" : "EQUILIBRIUM";
 
-  // Step 3: Ask the AI to make the decision
-  const zai = await getAI();
-
-  const systemPrompt = `You are a professional AI Trading Analyst. You make the FINAL trading decision based on ALL available data.
-
-Your job:
-1. READ the real news from the web (provided below).
-2. ANALYZE the chart on H1 (primary timeframe) — technical indicators, EMA, RSI, MACD, Bollinger.
-3. ANALYZE the Smart Money structure (BOS, CHOCH, Order Blocks, FVG, liquidity) on H1.
-4. ANALYZE the liquidity and session conditions.
-5. ANALYZE the multi-timeframe alignment (M15, H1, H4, D1) for confirmation.
-6. Make a FINAL DECISION: BUY, SELL, WAIT, or HOLD.
-
-CRITICAL RULES:
-- Do NOT rely on a single news item or single indicator. Consider EVERYTHING.
-- If data conflicts or is incomplete, return WAIT with explanation.
-- If there is high-impact news approaching, return WAIT.
-- The decision must be based on the CONFLUENCE of multiple factors.
-- Always provide clear entry, stop loss, and 3 take profit levels.
-- Risk management is mandatory — never suggest a trade with RR worse than 1:2.
-- ALWAYS mention the timeframe in your reasoning (e.g., "On H1 timeframe..." or "Based on H1 with M15 and H4 confirmation...").
-- The primary analysis timeframe is H1. M15 is for entry timing. H4 and D1 are for trend confirmation.
-Respond in valid JSON only:
-{
-  "decision": "BUY|SELL|WAIT|HOLD",
-  "confidence": 0-100,
-  "direction": "long|short|neutral",
-  "entryPrice": number,
-  "stopLoss": number,
-  "takeProfit1": number,
-  "takeProfit2": number,
-  "takeProfit3": number,
-  "reasoning": "3-5 sentence explanation of WHY this decision",
-  "newsAnalysis": "what the news says and how it affects this pair",
-  "marketAnalysis": "technical analysis summary",
-  "liquidityAnalysis": "liquidity and session analysis",
-  "chartAnalysis": "chart structure analysis (SMC, patterns)",
-  "keyFactors": ["factor1", "factor2", ...],
-  "riskWarnings": ["warning1", ...]
-}`;
-
-  const newsText = news.length > 0
-    ? news.map((n, i) => `[${i + 1}] ${n.title}\n    Source: ${n.source}\n    ${n.snippet}`).join("\n\n")
-    : "No recent news found.";
-
-  const userPrompt = `=== REAL NEWS (searched from the web) ===
-${newsText}
-
-=== MARKET DATA for ${sym} ===
-Price: ${marketData.price}
-Change: ${marketData.changePct}%
-Session: ${marketData.session} (${marketData.liquidity} liquidity)
-Volatility: ${marketData.volatility}
-Spread: ${marketData.spreadPips} pips
-Risk Score: ${marketData.riskScore}/100
-
-=== TECHNICAL INDICATORS ===
-Trend: ${marketData.trend}
-Signal: ${marketData.signal} (score: ${marketData.signalScore}/100)
-RSI(14): ${marketData.rsi}
-ADX: ${marketData.adx}
-MACD Histogram: ${marketData.macdHist}
-ATR: ${marketData.atr} (${marketData.atrPct}%)
-EMA20: ${marketData.ema20}
-EMA50: ${marketData.ema50}
-EMA200: ${marketData.ema200}
-Bollinger Upper: ${marketData.bbUpper}
-Bollinger Lower: ${marketData.bbLower}
-Support: ${marketData.support}
-Resistance: ${marketData.resistance}
-
-=== SMART MONEY / ICT ===
-SMC Bias: ${marketData.smcBias} (strength: ${(marketData.smcBiasStrength * 100).toFixed(0)}%)
-Market Structure: ${marketData.smcStructure}
-Active Order Blocks: ${marketData.activeOrderBlocks}
-Active FVGs: ${marketData.activeFVGs}
-Liquidity Swept: ${marketData.liquiditySwept} zones
-Premium/Discount: ${marketData.premiumDiscount}
-
-=== MULTI-TIMEFRAME ===
-MTF Alignment: ${marketData.mtfAlignment}%
-MTF Decision: ${marketData.mtfDecision}
-MTF Trend Bias: ${marketData.mtfTrendBias}
-
-Now make your decision based on ALL of the above.`;
-
-  try {
-    const completion = await zai.chat.completions.create({
-      messages: [
-        { role: "assistant", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      thinking: { type: "disabled" },
-    });
-
-    const raw = completion.choices[0]?.message?.content || "";
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-
-    if (jsonMatch) {
-      try {
-        const parsed = JSON.parse(jsonMatch[0]);
-        const atr = marketData.atr || marketData.price * 0.005;
-        const isLong = parsed.direction === "long";
-        const entry = parsed.entryPrice || marketData.price;
-        const slDist = atr * 1.5;
-        const stopLoss = parsed.stopLoss || (isLong ? entry - slDist : entry + slDist);
-        const tp1 = parsed.takeProfit1 || (isLong ? entry + atr * 1.5 : entry - atr * 1.5);
-        const tp2 = parsed.takeProfit2 || (isLong ? entry + atr * 3 : entry - atr * 3);
-        const tp3 = parsed.takeProfit3 || (isLong ? entry + atr * 5 : entry - atr * 5);
-        const rr = Math.abs(tp3 - entry) / Math.abs(entry - stopLoss);
-
-        return {
-          symbol: sym,
-          decision: parsed.decision || "WAIT",
-          confidence: parsed.confidence || 50,
-          direction: parsed.direction || "neutral",
-          entryPrice: entry,
-          stopLoss,
-          takeProfit1: tp1,
-          takeProfit2: tp2,
-          takeProfit3: tp3,
-          riskReward: Math.round(rr * 10) / 10,
-          timeframe: "H1 (Primary) + M15 + H4 + D1 (Multi-Timeframe Confirmation)",
-          reasoning: parsed.reasoning || "",
-          newsAnalysis: parsed.newsAnalysis || "",
-          marketAnalysis: parsed.marketAnalysis || "",
-          liquidityAnalysis: parsed.liquidityAnalysis || "",
-          chartAnalysis: parsed.chartAnalysis || "",
-          keyFactors: parsed.keyFactors || [],
-          riskWarnings: parsed.riskWarnings || [],
-          newsSourcesRead: news.map((n) => ({ title: n.title, source: n.source, url: n.url })),
-          marketStatus: marketStatus.status,
-          marketStatusReason: marketStatus.reason,
-          timestamp: Date.now(),
-        };
-      } catch {
-        // JSON parse failed
-      }
-    }
-
-    // Fallback: use quant decision if AI fails
-    return fallbackDecision(marketData, news);
-  } catch (err: any) {
-    return fallbackDecision(marketData, news, err.message);
+  if (chief) {
+    pipelineSteps.push({ step: "5. Chief Decision", status: "done", duration: chief.duration });
+    return buildResult(sym, chief.decision, chief.confidence, chief.direction, s3, s4, s2, s1.items, marketStatus, pipelineSteps,
+      chief.reasoning, na.analysis,
+      `${a.trend} (ADX ${a.adx}), RSI ${a.rsi}, MACD ${a.macdHist > 0 ? "bullish" : "bearish"}. Signal: ${a.signal} (${a.signalScore}/100). EMA: ${a.ema20}/${a.ema50}/${a.ema200}. S/R: ${a.support}/${a.resistance}.`,
+      `${liq.session}. ${liq.liquidity}, ${liq.volatility}. ${liq.spreadPips} pips. ${mtf ? `MTF: ${mtf.overall.alignment}% (${mtf.overall.trendBias}).` : ""}`,
+      smc ? `SMC: ${smc.summary.bias} (${(smc.summary.biasStrength*100).toFixed(0)}%). ${smc.summary.activeOrderBlocks} OBs, ${smc.summary.activeFVGs} FVGs, ${smc.summary.liquiditySwept} sweeps. ${pdL}. BOS: ${smc.summary.lastBOS?.type||"none"}. CHOCH: ${smc.summary.lastCHOCH?.direction||"none"}. ${pa ? `PA: ${pa.patternCount} patterns, ${pa.netBias}.` : ""}` : "N/A",
+      chief.keyFactors || [], chief.riskWarnings || [`Risk ${a.riskScore}/100`],
+      chief.entry, chief.sl, chief.tp1, chief.tp2, chief.tp3, chief.rr);
   }
+
+  // Quant fallback
+  pipelineSteps.push({ step: "5. Chief Decision", status: "failed", duration: 0 });
+  let bull = 0, bear = 0;
+  if (a.trend === "Bullish") bull += 25; else if (a.trend === "Bearish") bear += 25;
+  if (a.rsi < 35) bull += 15; else if (a.rsi > 65) bear += 15;
+  if (a.macdHist > 0) bull += 12; else bear += 12;
+  if (a.signalScore > 0) bull += a.signalScore * 0.3; else bear += Math.abs(a.signalScore) * 0.3;
+  if (smc?.summary.bias === "bullish") bull += smc.summary.biasStrength * 20;
+  else if (smc?.summary.bias === "bearish") bear += smc.summary.biasStrength * 20;
+  if (na.score > 0) bull += na.score * 0.15; else if (na.score < 0) bear += Math.abs(na.score) * 0.15;
+
+  const isLong = bull > bear;
+  const dom = Math.max(bull, bear);
+  const dec = dom > 30 ? (isLong ? "BUY" : "SELL") : "WAIT";
+  const conf = Math.min(100, Math.round(dom + 20));
+  const atr = a.atr || a.price * 0.005;
+  const entry = a.price;
+  const sl = isLong ? entry - atr*1.5 : entry + atr*1.5;
+  const tp1 = isLong ? entry + atr*1.5 : entry - atr*1.5;
+  const tp2 = isLong ? entry + atr*3 : entry - atr*3;
+  const tp3 = isLong ? entry + atr*5 : entry - atr*5;
+  const rr = Math.abs(tp3-entry)/Math.abs(entry-sl);
+
+  return buildResult(sym, dec, conf, isLong ? "long" : "short", s3, s4, s2, s1.items, marketStatus, pipelineSteps,
+    `Chief AI failed. Quant: ${a.trend}, RSI ${a.rsi}, SMC ${smc?.summary.bias||"neutral"}, news ${na.sentiment}. Bull: ${bull.toFixed(0)}, Bear: ${bear.toFixed(0)}.`,
+    na.analysis, `${a.trend} (ADX ${a.adx}), RSI ${a.rsi}, MACD ${a.macdHist > 0 ? "bullish" : "bearish"}.`,
+    `${a.session}. ${a.liquidity}.`, smc ? `SMC: ${smc.summary.bias}.` : "N/A",
+    [`${a.trend} trend`, `RSI ${a.rsi}`, `SMC ${smc?.summary.bias||"neutral"}`, `News ${na.sentiment}`],
+    [`Risk ${a.riskScore}/100`, "Chief AI failed — quant fallback"], entry, sl, tp1, tp2, tp3, Math.round(rr*10)/10);
 }
 
-function fallbackDecision(marketData: MarketDataSnapshot, news: RealNewsItem[], errorMsg?: string): AIDecision {
-  const isLong = marketData.signalScore > 0;
-  const atr = marketData.atr || marketData.price * 0.005;
-  const entry = marketData.price;
-  const slDist = atr * 1.5;
-  const stopLoss = isLong ? entry - slDist : entry + slDist;
-  const tp1 = isLong ? entry + atr * 1.5 : entry - atr * 1.5;
-  const tp2 = isLong ? entry + atr * 3 : entry - atr * 3;
-  const tp3 = isLong ? entry + atr * 5 : entry - atr * 5;
-  const rr = Math.abs(tp3 - entry) / Math.abs(entry - stopLoss);
-
+function buildResult(sym: string, decision: string, confidence: number, direction: string,
+  chart: any, liq: any, na: any, news: any[], marketStatus: any, pipelineSteps: any[],
+  reasoning: string, newsAnalysis: string, marketAnalysis: string, liquidityAnalysis: string, chartAnalysis: string,
+  keyFactors: string[], riskWarnings: string[], entry?: number, sl?: number, tp1?: number, tp2?: number, tp3?: number, rr?: number
+): AIDecision {
+  const a = chart.analysis;
+  const atr = a.atr || a.price * 0.005;
+  const isLong = direction === "long";
+  const e = entry || a.price;
+  const s = sl || (isLong ? e - atr*1.5 : e + atr*1.5);
+  const t1 = tp1 || (isLong ? e + atr*1.5 : e - atr*1.5);
+  const t2 = tp2 || (isLong ? e + atr*3 : e - atr*3);
+  const t3 = tp3 || (isLong ? e + atr*5 : e - atr*5);
+  const r = rr || Math.abs(t3-e)/Math.abs(e-s);
   return {
-    symbol: marketData.symbol,
-    decision: marketData.signalScore > 20 ? (isLong ? "BUY" : "SELL") : "WAIT",
-    confidence: Math.min(100, Math.abs(marketData.signalScore) + 20),
-    direction: isLong ? "long" : "short",
-    entryPrice: entry,
-    stopLoss,
-    takeProfit1: tp1,
-    takeProfit2: tp2,
-    takeProfit3: tp3,
-    riskReward: Math.round(rr * 10) / 10,
-    timeframe: "H1 (Primary) + M15 + H4 + D1 (Multi-Timeframe Confirmation)",
-    reasoning: `AI decision engine unavailable${errorMsg ? ` (${errorMsg})` : ""}. Falling back to quant analysis. ${marketData.trend} trend, RSI ${marketData.rsi}, signal ${marketData.signal}.`,
-    newsAnalysis: `${news.length} news items were searched. AI analysis unavailable — review manually.`,
-    marketAnalysis: `${marketData.trend} trend, ADX ${marketData.adx}, RSI ${marketData.rsi}.`,
-    liquidityAnalysis: `${marketData.liquidity} liquidity in ${marketData.session} session.`,
-    chartAnalysis: `SMC bias: ${marketData.smcBias}. ${marketData.activeOrderBlocks} OBs, ${marketData.activeFVGs} FVGs.`,
-    keyFactors: [`${marketData.trend} trend`, `RSI ${marketData.rsi}`, `SMC ${marketData.smcBias}`],
-    riskWarnings: [`Risk score ${marketData.riskScore}/100`],
-    newsSourcesRead: news.map((n) => ({ title: n.title, source: n.source, url: n.url })),
-    marketStatus: marketStatus.status,
-    marketStatusReason: marketStatus.reason,
-    timestamp: Date.now(),
+    symbol: sym, decision: decision as any, confidence, direction: direction as any,
+    entryPrice: e, stopLoss: s, takeProfit1: t1, takeProfit2: t2, takeProfit3: t3,
+    riskReward: Math.round(r*10)/10, timeframe: "H1 (Primary) + M15 + H4 + D1",
+    reasoning, newsAnalysis, marketAnalysis, liquidityAnalysis, chartAnalysis,
+    keyFactors, riskWarnings,
+    newsSourcesRead: (na.itemAnalysis || []).map((n: any) => ({ title: n.title, source: "", sentiment: n.sentiment })),
+    overallSentiment: na.sentiment || "neutral", sentimentScore: na.score || 0,
+    marketStatus: marketStatus.status, marketStatusReason: marketStatus.reason,
+    pipelineSteps, timestamp: Date.now(),
   };
 }
